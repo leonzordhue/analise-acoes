@@ -372,12 +372,12 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
     <div class="hero-title">Análise de ações contra<br>empresas no TJRJ</div>
     <div class="hero-sub">Volume, taxa de procedência, condenação por comarca e teses jurídicas — diretamente do CNJ DataJud.</div>
     <div class="hero-chips">
-      <span class="hero-chip" onclick="qs('LIGHT','TJRJ')">⚡ Light / TJRJ</span>
-      <span class="hero-chip" onclick="qs('OI S.A.','TJRJ')">📡 Oi / TJRJ</span>
-      <span class="hero-chip" onclick="qs('ENEL DISTRIBUIÇÃO RIO','TJRJ')">🔌 Enel RJ</span>
-      <span class="hero-chip" onclick="qs('TIM S.A.','TJRJ')">📱 TIM / TJRJ</span>
-      <span class="hero-chip" onclick="qs('CLARO S.A.','TJRJ')">🌐 Claro / TJRJ</span>
-      <span class="hero-chip" onclick="qs('CEDAE','TJRJ')">💧 CEDAE / TJRJ</span>
+      <span class="hero-chip" onclick="qs('Light','TJRJ','energia')">⚡ Light / TJRJ</span>
+      <span class="hero-chip" onclick="qs('Oi','TJRJ','telecom')">📡 Oi / TJRJ</span>
+      <span class="hero-chip" onclick="qs('Enel RJ','TJRJ','energia')">🔌 Enel RJ</span>
+      <span class="hero-chip" onclick="qs('TIM','TJRJ','telecom')">📱 TIM / TJRJ</span>
+      <span class="hero-chip" onclick="qs('Claro','TJRJ','telecom')">🌐 Claro / TJRJ</span>
+      <span class="hero-chip" onclick="qs('CEDAE','TJRJ','agua')">💧 CEDAE / TJRJ</span>
     </div>
   </div>
   <div class="hero-wave">
@@ -394,14 +394,24 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
       <div class="card-head">
         <div>
           <div class="card-title">Pesquisa de Ações</div>
-          <div class="card-sub">Busque por nome fantasia, razão social ou CNPJ</div>
+          <div class="card-sub">Selecione a categoria processual e o tribunal</div>
         </div>
       </div>
       <div class="card-body">
         <div class="form-grid" style="margin-bottom:1rem">
-          <div class="field full">
-            <label class="field-label">Empresa (nome fantasia ou razão social)</label>
-            <input type="text" id="empresa-input" placeholder="Ex: Light, Oi, Enel, TIM, Claro, Bradesco…" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')buscar()">
+          <div class="field">
+            <label class="field-label">Categoria Processual</label>
+            <select id="f-categoria">
+              <option value="energia">⚡ Energia Elétrica (Light, Enel, CEMIG…)</option>
+              <option value="telecom">📡 Telecomunicações (Oi, TIM, Claro, Vivo…)</option>
+              <option value="banco">🏦 Serviços Bancários (Bradesco, Itaú, Nubank…)</option>
+              <option value="agua">💧 Saneamento / Água (CEDAE, Sabesp…)</option>
+              <option value="geral">🔍 Geral (Consumidor)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Label da Empresa (opcional)</label>
+            <input type="text" id="empresa-input" placeholder="Ex: Light, Oi, CEDAE — apenas para exibição" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')buscar()">
           </div>
         </div>
         <div class="form-grid cols4" style="margin-bottom:1.1rem">
@@ -419,11 +429,12 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
             </select>
           </div>
           <div class="field">
-            <label class="field-label">Polo</label>
+            <label class="field-label">Grau</label>
             <select id="f-polo">
-              <option value="PA">Réu (passivo)</option>
-              <option value="AT">Autor (ativo)</option>
-              <option value="">Todos os polos</option>
+              <option value="">Todos os graus</option>
+              <option value="JE">JE — Juizado Especial</option>
+              <option value="G1">G1 — 1º Grau</option>
+              <option value="G2">G2 — 2º Grau</option>
             </select>
           </div>
           <div class="field">
@@ -680,7 +691,7 @@ let curData   = null;
    CONFIG
    ================================================================ */
 const CFG_KEY = 'laadv_jd_cfg_v1';
-let CFG = { gasUrl:'https://script.google.com/macros/s/AKfycbzifAehNzlgStKxWRW6vQOn9mWV0otCKjT7gu7QSzcZkrw9AZ4r8Nz1C3FpLJlS_pEf5Q/exec', apiKey:'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==', sheetId:'1v2UI_OSF6r_WEfTc51SDAdY8uTZqIcARxNHGhIZROys', cacheTTL:3600000 };
+let CFG = { gasUrl:'https://script.google.com/macros/s/AKfycbzifAehNzlgStKxWRW6vQOn9mWV0otCKjT7gu7QSzcZkrw9AZ4r8Nz1C3FpLJlS_pEf5Q/exec', apiKey:'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==', sheetId:'1v2UI_OSF6r_WEfTc51SDAdY8uTZqIcARxNHGhIZROys', cacheTTL:3600000, version:'1.0.7' };
 
 function loadCfg() {
   try { const s = localStorage.getItem(CFG_KEY); if(s) { const saved=JSON.parse(s); if(saved.gasUrl) CFG.gasUrl=saved.gasUrl; if(saved.apiKey) CFG.apiKey=saved.apiKey; if(saved.sheetId) CFG.sheetId=saved.sheetId; if(saved.cacheTTL) CFG.cacheTTL=saved.cacheTTL; } } catch(e){}
@@ -751,31 +762,26 @@ async function ftch(url,opts,ms) {
    ================================================================ */
 async function buscar() {
   const emp = document.getElementById('empresa-input').value.trim();
+  const cat = document.getElementById('f-categoria').value;
   const tri = document.getElementById('f-tribunal').value;
   const ai  = document.getElementById('f-ano-i').value;
   const af  = document.getElementById('f-ano-f').value;
-  const pol = document.getElementById('f-polo').value;
-
-  if (!emp) {
-    const el = document.getElementById('empresa-input');
-    el.style.borderColor='var(--error)'; el.focus();
-    setTimeout(()=>el.style.borderColor='',1600); return;
-  }
+  const grau = document.getElementById('f-polo').value;  // agora é grau
 
   if (!CFG.gasUrl) {
     dlog('WARN','Sem backend → dados simulados');
-    const sim = simData(emp, tri, parseInt(ai), parseInt(af));
+    const sim = simData(emp||cat, tri, parseInt(ai), parseInt(af));
     renderR(sim, false, true); return;
   }
 
-  const ck = ckKey(emp,tri,ai,af,pol);
+  const ck = ckKey(emp||cat,tri,ai,af,cat,grau);
   const cached = ckGet(ck);
   if (cached) { renderR(cached,true,false); return; }
 
   showLoad('Consultando CNJ DataJud…','aguardando resposta');
   document.getElementById('btn-search').disabled = true;
   try {
-    const params = new URLSearchParams({action:'search',empresa:emp,tribunal:tri,anoInicio:ai,anoFim:af,polo:pol,apiKey:CFG.apiKey,sheetId:CFG.sheetId});
+    const params = new URLSearchParams({action:'search',empresa:emp,categoria:cat,tribunal:tri,anoInicio:ai,anoFim:af,grau,apiKey:CFG.apiKey,sheetId:CFG.sheetId});
     const res = await ftch(`${CFG.gasUrl}?${params}`,{},45000);
     setLoad('Processando resultados…','calculando métricas');
     const data = await res.json(); lastResp = data;
@@ -1122,7 +1128,7 @@ function exportCSV() {
 /* ================================================================
    UI
    ================================================================ */
-function qs(e,t) { document.getElementById('empresa-input').value=e; document.getElementById('f-tribunal').value=t; buscar(); }
+function qs(e,t,c) { document.getElementById('empresa-input').value=e; document.getElementById('f-tribunal').value=t; if(c&&document.getElementById('f-categoria'))document.getElementById('f-categoria').value=c; buscar(); }
 function limpar() { document.getElementById('empresa-input').value=''; document.getElementById('results-section').classList.add('hidden'); [cT,cO,cC].forEach(c=>{if(c)c.destroy();}); cT=cO=cC=null; curData=null; document.getElementById('btn-export').disabled=true; }
 function abrirConfig() { document.getElementById('cfg-gas-url').value=CFG.gasUrl||''; document.getElementById('cfg-api-key').value=CFG.apiKey||''; document.getElementById('cfg-sheet-id').value=CFG.sheetId||''; openModal('config-modal'); }
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
