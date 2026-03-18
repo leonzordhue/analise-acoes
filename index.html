@@ -1,577 +1,1180 @@
-/**
- * ================================================================
- * LAADV — JusData Analytics · BACKEND GOOGLE APPS SCRIPT
- * Projeto : Análise de Ações Judiciais contra Empresas (CNJ DataJud)
- * Autor   : Luís Albert Advocacia — DMOB/SEINFRA
- * Versão  : 1.0.2
- * Data    : 2026-03-18
- * ================================================================
- *
- * CHANGELOG:
- * v1.0.0 (2026-03-18) — Versão inicial
- * v1.0.1 (2026-03-18) — FIX: nested query
- * v1.0.2 (2026-03-18) — FIX: formato data range (yyyy, não yyyy-MM-dd)
- *   FIX: "partes" NÃO é campo nested no mapping real do DataJud —
- *        removido nested wrapper; usar match direto em partes.nome
- *   FIX: "movimentos" também NÃO é nested no TJRJ —
- *        removida nested aggregation; usar terms direto em movimentos.codigo
- *   FIX: polo ignorado (campo partes.polo pode não existir) —
- *        polo agora é filtro opcional via should/match
- *   ADD: fallback gracioso se aggregations retornar vazio
- *
- * PRÓXIMAS VERSÕES:
- *   v1.1.0 — Query per-ano para outcomes exatos (não estimados)
- *   v1.2.0 — Busca por CNPJ via pré-validação Receita Federal
- *   v1.3.0 — Multi-tribunal paralelo (UrlFetchApp.fetchAll)
- *   v1.4.0 — Trigger diário incremental
- *
- * ================================================================
- * LIÇÕES APRENDIDAS — NÃO REGREDIR:
- *   - "partes" DataJud TJRJ: campo OBJETO SIMPLES, não nested
- *     → usar match/term direto, nunca nested wrapper
- *   - "movimentos" DataJud TJRJ: campo OBJETO SIMPLES, não nested
- *     → usar terms agg direto em movimentos.codigo
- *   - Outros TJs podem ter mapeamentos diferentes
- *   - ContentService.createTextOutput: NÃO usar setHeader (CORS auto)
- *   - UrlFetchApp.fetch: SEMPRE muteHttpExceptions:true
- *   - getLastRow() em aba vazia retorna 0 — proteger
- *   - TJDFT: índice correto = api_publica_tjdft (não tjdf)
- *   - APIKey DataJud é pública — pode mudar sem aviso pelo CNJ
- *     Verificar sempre: https://datajud-wiki.cnj.jus.br/api-publica/acesso
- * ================================================================
- */
+<!DOCTYPE html>
+<html lang="pt-BR">
+<!--
+╔═══════════════════════════════════════════════════════════════════════════════════╗
+║  LAADV — JusData Analytics v1.0                                                   ║
+║  Análise de Ações Judiciais contra Empresas | Luís Albert Advocacia               ║
+║  GitHub Pages Ready | Single-file HTML | CNJ DataJud                              ║
+╠═══════════════════════════════════════════════════════════════════════════════════╣
+║  CHANGELOG INTERNO — NÃO REMOVER ESTE BLOCO                                       ║
+╠═══════════════════════════════════════════════════════════════════════════════════╣
+║  [v1.0.0] 2026-03-18 — Criação                                                    ║
+║  + Design system idêntico ao LAADV (teal/gold, Cormorant+DM Sans)                ║
+║  + Busca por empresa/razão social com filtros tribunal/ano/polo                    ║
+║  + KPIs: Ações/Ano Média, Taxa Procedência, Condenação Média, Comarcas            ║
+║  + Gráfico bar duplo: evolução anual (total vs produto específico)                ║
+║  + Gráfico donut: distribuição de resultados com percentuais                      ║
+║  + Gráfico horizontal: condenação média por comarca                               ║
+║  + Tabela top comarcas (ações, procedência %, val. médio, perfil)                 ║
+║  + Seção teses jurídicas em acordeão (força alta/média/atenção)                   ║
+║  + Tabela detalhe anual de resultados                                              ║
+║  + Config modal GAS (URL + API Key + Sheet ID)                                    ║
+║  + Dados simulados com aviso explícito (sem backend)                              ║
+║  + Cache localStorage TTL 1h                                                      ║
+║  + Exportação CSV UTF-8 BOM                                                       ║
+║  + Dev panel (Ctrl+Shift+D): log, changelog, config, last response                ║
+║                                                                                    ║
+║  BUGS NÃO REGREDIR:                                                                ║
+║  - Chart.js: SEMPRE if(chart) chart.destroy() antes de recriar                   ║
+║  - GAS CORS: ContentService JSON — não usar setHeader manualmente                 ║
+║  - Cache key: incluir todos os filtros para evitar colisões de resultado           ║
+║  - DataJud "partes": campo nested — nested query obrigatória, não raiz            ║
+║  - TJDFT: índice = api_publica_tjdft (não api_publica_tjdf)                       ║
+║  - porAno outcomes v1.0: estimados proporcionalmente — NÃO exibir como exatos     ║
+║  - outcomes: verificar se são frações (simulado) ou contagens (real API)          ║
+║                                                                                    ║
+║  ROADMAP:                                                                          ║
+║  v1.1.0 — Query per-ano para outcomes exatos (não estimados)                      ║
+║  v1.2.0 — Busca por CNPJ com pré-validação Receita Federal                       ║
+║  v1.3.0 — Multi-tribunal paralelo (UrlFetchApp.fetchAll)                          ║
+║  v1.4.0 — Trigger diário de atualização incremental                               ║
+║  v2.0.0 — Dashboard comparativo entre empresas do mesmo setor                     ║
+╚═══════════════════════════════════════════════════════════════════════════════════╝
+-->
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="theme-color" content="#0B4A44"/>
+  <title>LAADV — JusData Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{--teal:#0B4A44;--teal-mid:#145E58;--teal-light:#1C7A72;--teal-hover:#0d5a54;--teal-bg:#EBF5F4;--teal-brd:#A8D4D0;--gold:#C9A93E;--gold-light:#E8CB6E;--gold-dark:#9E8130;--gold-bg:#FBF5E0;--gold-brd:#E8CB6E;--white:#FFFFFF;--gray-bg:#F5F7F9;--gray-light:#EEF1F5;--gray-brd:#DDE3EC;--gray-mid:#8899AA;--text:#162030;--text-mid:#3D4F63;--success:#1A6B48;--success-bg:#E8F5EE;--success-brd:#A3D4BC;--error:#B02020;--error-bg:#FEF2F2;--blue:#1A4B8C;--blue-bg:#EBF0F8;--blue-brd:#A8BED4;--red:#8C1A1A;--red-bg:#F8EBEB;--red-brd:#D4A8A8;--orange:#B45309;--orange-bg:#FEF3C7;--orange-brd:#FCD34D;--font-serif:'Cormorant Garamond',Georgia,serif;--font:'DM Sans',system-ui,sans-serif;--radius:12px;--shadow:0 2px 18px rgba(11,74,68,.10),0 0 0 1px var(--gray-brd);--shadow-lg:0 8px 40px rgba(11,74,68,.18);}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;font-size:16px;}
+body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit-font-smoothing:antialiased;min-height:100vh;}
+::selection{background:rgba(11,74,68,.15);}
 
-// ================================================================
-// CONFIGURAÇÃO CENTRAL — CREDENCIAIS PREENCHIDAS
-// ================================================================
-const CONFIG = {
+/* TOPBAR */
+.topbar{background:var(--teal);padding:.38rem 1.5rem;display:flex;align-items:center;justify-content:space-between;}
+.topbar-l{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.45);font-weight:500;}
+.topbar-r{font-size:.62rem;font-weight:600;color:var(--gold-light);display:flex;align-items:center;gap:.5rem;letter-spacing:.06em;text-transform:uppercase;}
+.topbar-dot{width:6px;height:6px;border-radius:50%;background:var(--gold-light);animation:pulse 2.2s ease-in-out infinite;}
+.topbar-devbtn{font-size:.6rem;cursor:pointer;opacity:.35;color:var(--gold-light);background:none;border:none;padding:0 .5rem;letter-spacing:.04em;transition:opacity .2s;}
+.topbar-devbtn:hover{opacity:1;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
 
-  // ── CHAVE API DATAJUD (pública CNJ) ──────────────────────────
-  // Chave pública — pode ser alterada pelo CNJ a qualquer momento.
-  // Verificar sempre: https://datajud-wiki.cnj.jus.br/api-publica/acesso
-  DEFAULT_API_KEY: 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==',
+/* HEADER */
+.site-header{background:var(--teal);border-bottom:3px solid var(--gold);padding:.85rem 1.5rem 1rem;position:sticky;top:0;z-index:200;box-shadow:0 4px 24px rgba(11,74,68,.3);}
+.header-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+.brand{display:flex;align-items:center;gap:1rem;}
+.brand-logo{width:44px;height:44px;border-radius:8px;background:var(--gold);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.brand-logo svg{width:30px;height:30px;}
+.brand-name{font-family:var(--font-serif);font-size:1.3rem;font-weight:700;color:var(--white);letter-spacing:.04em;line-height:1.1;}
+.brand-sub{font-size:.63rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-light);margin-top:.1rem;}
+.header-right{display:flex;align-items:center;gap:.75rem;}
+.header-badge{font-size:.65rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;background:rgba(201,169,62,.18);border:1px solid rgba(201,169,62,.4);color:var(--gold-light);padding:.4em 1.1em;border-radius:100px;}
+.hdr-status{display:flex;align-items:center;gap:.4rem;font-size:.65rem;font-weight:600;color:rgba(255,255,255,.5);letter-spacing:.05em;}
+.hdr-dot{width:7px;height:7px;border-radius:50%;background:var(--gray-mid);transition:background .3s;}
+.hdr-dot.ok{background:var(--gold-light);box-shadow:0 0 6px var(--gold-light);}
+.hdr-dot.err{background:#ef4444;box-shadow:0 0 6px #ef4444;}
 
-  // ── PLANILHA GOOGLE SHEETS (LAADV — JusData Cache) ───────────
-  DEFAULT_SHEET_ID: '1v2UI_OSF6r_WEfTc51SDAdY8uTZqIcARxNHGhIZROys',
+/* HERO */
+.hero{background:linear-gradient(135deg,var(--teal) 0%,var(--teal-mid) 60%,var(--teal-light) 100%);padding:2.2rem 1.5rem 3rem;position:relative;overflow:hidden;}
+.hero::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(-52deg,transparent,transparent 54px,rgba(201,169,62,.04) 54px,rgba(201,169,62,.04) 55px);}
+.hero::after{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(to bottom,var(--gold),rgba(201,169,62,.1));}
+.hero-inner{position:relative;z-index:1;max-width:1200px;margin:0 auto;}
+.hero-eye{font-size:.63rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-light);margin-bottom:.5rem;}
+.hero-title{font-family:var(--font-serif);font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;color:var(--white);letter-spacing:-.01em;line-height:1.1;margin-bottom:.4rem;}
+.hero-sub{font-size:.84rem;color:rgba(255,255,255,.55);max-width:680px;line-height:1.6;}
+.hero-chips{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem;}
+.hero-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:.63rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:rgba(255,255,255,.8);padding:.28em .9em;border-radius:100px;cursor:pointer;transition:all .15s;}
+.hero-chip:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);}
+.hero-wave{overflow:hidden;line-height:0;}
+.hero-wave svg{display:block;width:100%;fill:var(--gray-bg);}
 
-  // ── URL BASE DO DATAJUD ───────────────────────────────────────
-  CNJ_BASE_URL: 'https://api-publica.datajud.cnj.jus.br',
+/* MAIN */
+.main-wrap{max-width:1200px;margin:0 auto;padding:2rem 1.5rem 5rem;}
 
-  // ── MAPEAMENTO TRIBUNAL → ÍNDICE DATAJUD ─────────────────────
-  TRIBUNAIS: {
-    'TJRJ':  'api_publica_tjrj',
-    'TJSP':  'api_publica_tjsp',
-    'TJMG':  'api_publica_tjmg',
-    'TJRS':  'api_publica_tjrs',
-    'TJBA':  'api_publica_tjba',
-    'TJPR':  'api_publica_tjpr',
-    'TJPE':  'api_publica_tjpe',
-    'TJSC':  'api_publica_tjsc',
-    'TJAM':  'api_publica_tjam',
-    'TJGO':  'api_publica_tjgo',
-    'TJCE':  'api_publica_tjce',
-    'TJPB':  'api_publica_tjpb',
-    'TJRN':  'api_publica_tjrn',
-    'TJPA':  'api_publica_tjpa',
-    'TJAL':  'api_publica_tjal',
-    'TJSE':  'api_publica_tjse',
-    'TJPI':  'api_publica_tjpi',
-    'TJMA':  'api_publica_tjma',
-    'TJMT':  'api_publica_tjmt',
-    'TJMS':  'api_publica_tjms',
-    'TJTO':  'api_publica_tjto',
-    'TJRO':  'api_publica_tjro',
-    'TJAC':  'api_publica_tjac',
-    'TJAP':  'api_publica_tjap',
-    'TJRR':  'api_publica_tjrr',
-    'TJDFT': 'api_publica_tjdft',
-    'TJES':  'api_publica_tjes',
-  },
+/* CARD */
+.card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.25rem;overflow:hidden;}
+.card-head{background:linear-gradient(to right,var(--teal),var(--teal-mid));padding:.9rem 1.4rem;display:flex;align-items:center;justify-content:space-between;}
+.card-title{font-size:.82rem;font-weight:700;letter-spacing:.04em;color:#fff;}
+.card-sub{font-size:.65rem;color:rgba(255,255,255,.55);margin-top:.1rem;}
+.card-body{padding:1.4rem;}
+.card-body-tight{padding:0;}
 
-  // ── CÓDIGOS TPU — MOVIMENTOS FINAIS ──────────────────────────
-  // Ref: https://www.cnj.jus.br/sgt/consulta_publica_movimento.php
-  MOVIMENTOS: {
-    PROCEDENTE:          [848],
-    IMPROCEDENTE:        [849],
-    PROCEDENTE_PARCIAL:  [850],
-    EXTINCAO_SEM_MERITO: [22, 237],
-    ACORDO:              [893, 11388, 11450, 11451],
-  },
+/* FORM */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+@media(max-width:640px){.form-grid{grid-template-columns:1fr;}}
+.form-grid.cols4{grid-template-columns:repeat(4,1fr);}
+@media(max-width:900px){.form-grid.cols4{grid-template-columns:1fr 1fr;}}
+.field{display:flex;flex-direction:column;gap:.35rem;}
+.field.full{grid-column:1/-1;}
+.field-label{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-mid);}
+.field input,.field select{font-family:var(--font);font-size:.9rem;font-weight:500;color:var(--text);background:var(--white);border:1.5px solid var(--gray-brd);border-radius:8px;padding:.7rem 1rem;outline:none;width:100%;transition:border-color .2s,box-shadow .2s;appearance:none;-webkit-appearance:none;}
+.field input:focus,.field select:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(11,74,68,.1);}
+.field input::placeholder{color:var(--gray-mid);}
+.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238899AA' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 1rem center;padding-right:2.5rem;}
 
-  SHEETS: {
-    CACHE:     'Cache',
-    HISTORICO: 'Historico',
-    LOG:       'Log',
-  },
+/* BUTTONS */
+.btn{font-family:var(--font);font-size:.85rem;font-weight:700;border:none;border-radius:9px;padding:.75em 1.5em;cursor:pointer;display:inline-flex;align-items:center;gap:.5rem;transition:all .16s;white-space:nowrap;}
+.btn-primary{background:var(--teal);color:#fff;}
+.btn-primary:hover{background:var(--teal-hover);transform:translateY(-1px);box-shadow:0 4px 18px rgba(11,74,68,.3);}
+.btn-gold{background:var(--gold);color:var(--teal);}
+.btn-gold:hover{background:var(--gold-light);transform:translateY(-1px);}
+.btn-outline{background:transparent;color:var(--teal);border:1.5px solid var(--teal-brd);}
+.btn-outline:hover{background:var(--teal-bg);}
+.btn-ghost{background:transparent;color:var(--gray-mid);border:1.5px solid var(--gray-brd);}
+.btn-ghost:hover{background:var(--gray-light);color:var(--text);}
+.btn-lg{font-size:.95rem;padding:.9em 2em;}
+.btn-sm{font-size:.75rem;padding:.5em 1em;}
+.btn:disabled{opacity:.45;pointer-events:none;}
+.btn-actions{display:flex;gap:.6rem;flex-wrap:wrap;}
 
-  CACHE_TTL_MS: 3600 * 1000,  // 1 hora
-};
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.9rem;margin-bottom:1.25rem;}
+@media(max-width:900px){.kpi-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:500px){.kpi-grid{grid-template-columns:1fr;}}
+.kpi-card{background:var(--white);border:1.5px solid var(--gray-brd);border-radius:10px;padding:1rem 1.2rem;position:relative;overflow:hidden;transition:box-shadow .2s;}
+.kpi-card:hover{box-shadow:0 4px 20px rgba(11,74,68,.12);}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--kpi-c,var(--teal-brd));}
+.kpi-card.hl{background:var(--teal);border-color:var(--teal);}
+.kpi-card.gd{background:linear-gradient(135deg,var(--gold),var(--gold-dark));border-color:var(--gold-dark);}
+.kpi-label{font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gray-mid);margin-bottom:.3rem;}
+.kpi-card.hl .kpi-label{color:rgba(255,255,255,.6);}
+.kpi-card.gd .kpi-label{color:rgba(11,74,68,.65);}
+.kpi-val{font-family:var(--font-serif);font-size:2rem;font-weight:700;color:var(--text);line-height:1.1;}
+.kpi-card.hl .kpi-val{color:#fff;}
+.kpi-card.gd .kpi-val{color:var(--teal);}
+.kpi-sub{font-size:.68rem;color:var(--gray-mid);margin-top:.3rem;}
+.kpi-card.hl .kpi-sub{color:rgba(255,255,255,.5);}
+.kpi-card.gd .kpi-sub{color:rgba(11,74,68,.55);}
 
+/* CHARTS */
+.charts-row{display:grid;grid-template-columns:3fr 2fr;gap:1.25rem;margin-bottom:1.25rem;}
+@media(max-width:900px){.charts-row{grid-template-columns:1fr;}}
+.chart-card{background:var(--white);border:1.5px solid var(--gray-brd);border-radius:var(--radius);overflow:hidden;}
+.chart-head{padding:.9rem 1.2rem 0;display:flex;justify-content:space-between;align-items:flex-start;}
+.chart-title{font-size:.82rem;font-weight:700;color:var(--text);}
+.chart-sub{font-size:.65rem;color:var(--gray-mid);margin-top:.15rem;}
+.chart-body{padding:1rem 1rem 1.2rem;}
+.chart-body canvas{max-height:260px;}
+.chart-legend{display:flex;gap:1rem;flex-wrap:wrap;padding:.6rem 1rem 1rem;border-top:1px solid var(--gray-light);}
+.legend-item{display:flex;align-items:center;gap:.35rem;font-size:.68rem;color:var(--text-mid);}
+.legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
 
-// ================================================================
-// PONTO DE ENTRADA — doGet
-// ================================================================
-function doGet(e) {
-  const params  = e && e.parameter ? e.parameter : {};
-  const action  = params.action  || 'ping';
-  const apiKey  = params.apiKey  || CONFIG.DEFAULT_API_KEY;
-  const sheetId = params.sheetId || CONFIG.DEFAULT_SHEET_ID;
+/* TABLE */
+.result-table-wrap{overflow-x:auto;}
+.result-table{width:100%;border-collapse:collapse;font-size:.78rem;}
+.result-table thead tr{background:var(--teal);}
+.result-table thead th{padding:.75rem 1rem;font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.9);text-align:left;white-space:nowrap;border-right:1px solid rgba(255,255,255,.1);}
+.result-table thead th:last-child{border-right:none;}
+.result-table tbody tr{border-bottom:1px solid var(--gray-brd);transition:background .12s;}
+.result-table tbody tr:last-child{border-bottom:none;}
+.result-table tbody tr:hover{background:var(--teal-bg);}
+.result-table tbody td{padding:.65rem 1rem;color:var(--text-mid);white-space:nowrap;border-right:1px solid var(--gray-brd);}
+.result-table tbody td:last-child{border-right:none;}
+.td-strong{font-weight:700;color:var(--text);}
 
-  gasLog(sheetId, 'INFO',
-    `doGet: action=${action} | empresa=${params.empresa||'-'} | tribunal=${params.tribunal||'-'}`
-  );
+/* TAGS */
+.tag{display:inline-flex;align-items:center;gap:.25rem;font-size:.63rem;font-weight:700;padding:.2em .7em;border-radius:100px;letter-spacing:.04em;}
+.tag-teal{background:var(--teal-bg);border:1px solid var(--teal-brd);color:var(--teal);}
+.tag-gold{background:var(--gold-bg);border:1px solid var(--gold-brd);color:var(--gold-dark);}
+.tag-green{background:var(--success-bg);border:1px solid var(--success-brd);color:var(--success);}
+.tag-red{background:var(--red-bg);border:1px solid var(--red-brd);color:var(--red);}
+.tag-blue{background:var(--blue-bg);border:1px solid var(--blue-brd);color:var(--blue);}
+.tag-orange{background:var(--orange-bg);border:1px solid var(--orange-brd);color:var(--orange);}
+.tag-gray{background:var(--gray-light);border:1px solid var(--gray-brd);color:var(--gray-mid);}
+.pct-pill{display:inline-block;font-size:.72rem;font-weight:700;padding:.18em .7em;border-radius:100px;}
+.pct-high{background:#d1fae5;color:#065f46;}
+.pct-mid{background:#fef3c7;color:#92400e;}
+.pct-low{background:#fee2e2;color:#991b1b;}
 
-  let result;
+/* TESES */
+.teses-section-title{font-size:.63rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);padding-bottom:.5rem;border-bottom:2px solid var(--teal-bg);display:flex;align-items:center;gap:.4rem;margin-bottom:.9rem;}
+.tese-card{background:var(--white);border:1.5px solid var(--gray-brd);border-radius:10px;margin-bottom:.65rem;overflow:hidden;transition:box-shadow .15s;}
+.tese-card:hover{box-shadow:0 2px 12px rgba(11,74,68,.1);}
+.tese-head{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.1rem;cursor:pointer;user-select:none;}
+.tese-head-left{display:flex;align-items:center;gap:.75rem;flex:1;min-width:0;}
+.tese-num{font-family:var(--font-serif);font-size:1.1rem;font-weight:700;color:var(--teal);flex-shrink:0;min-width:1.6rem;}
+.tese-titulo{font-size:.85rem;font-weight:700;color:var(--text);line-height:1.3;}
+.tese-chevron{font-size:.7rem;color:var(--gray-mid);transition:transform .2s;flex-shrink:0;margin-left:.5rem;}
+.tese-card.open .tese-chevron{transform:rotate(180deg);}
+.tese-body{display:none;padding:0 1.1rem 1.1rem;border-top:1px solid var(--gray-light);}
+.tese-card.open .tese-body{display:block;animation:fadeIn .2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.tese-desc{font-size:.82rem;color:var(--text-mid);line-height:1.65;margin:.8rem 0 .75rem;}
+.tese-normas{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.65rem;}
+.tese-norma{font-size:.62rem;font-weight:600;background:var(--teal-bg);border:1px solid var(--teal-brd);color:var(--teal);padding:.15em .6em;border-radius:4px;}
+
+/* ALERTS */
+.alert{border-radius:9px;padding:.85rem 1.1rem;display:flex;align-items:flex-start;gap:.6rem;font-size:.8rem;line-height:1.5;margin-bottom:1rem;}
+.alert-info{background:var(--teal-bg);border:1.5px solid var(--teal-brd);color:var(--teal);}
+.alert-warn{background:var(--gold-bg);border:1.5px solid var(--gold-brd);color:#6B4F00;}
+.alert strong{font-weight:700;}
+
+/* LOADING */
+.loading-overlay{display:none;position:fixed;inset:0;background:rgba(11,20,40,.65);backdrop-filter:blur(5px);z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:1.2rem;}
+.loading-overlay.active{display:flex;}
+.spinner{width:44px;height:44px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--gold);border-radius:50%;animation:spin .75s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-label{font-family:var(--font-serif);font-size:1.1rem;color:#fff;letter-spacing:.02em;}
+.loading-sub{font-size:.72rem;color:rgba(255,255,255,.5);letter-spacing:.08em;text-transform:uppercase;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(11,20,40,.65);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;z-index:1000;padding:2rem 1rem;overflow-y:auto;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--white);border-radius:16px;width:100%;max-width:600px;box-shadow:var(--shadow-lg);animation:modalIn .22s ease;overflow:hidden;}
+@keyframes modalIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.modal-head{background:var(--teal);padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;}
+.modal-head-title{font-size:.95rem;font-weight:700;color:#fff;display:flex;align-items:center;gap:.5rem;}
+.modal-close{width:30px;height:30px;border-radius:6px;background:rgba(255,255,255,.12);border:none;color:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.modal-body{padding:1.5rem;}
+.modal-foot{padding:1rem 1.5rem;border-top:1px solid var(--gray-brd);display:flex;justify-content:flex-end;gap:.5rem;}
+.step-list{list-style:none;counter-reset:s;}
+.step-list li{counter-increment:s;padding:9px 0 9px 34px;position:relative;border-bottom:1px solid var(--gray-brd);font-size:.8rem;color:var(--text-mid);line-height:1.6;}
+.step-list li:last-child{border-bottom:none;}
+.step-list li::before{content:counter(s);position:absolute;left:0;top:9px;width:20px;height:20px;background:var(--teal);color:#fff;border-radius:50%;font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;}
+
+/* RESULT HEADER */
+.result-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;padding-bottom:1.1rem;border-bottom:2px solid var(--teal-bg);}
+.result-nome{font-family:var(--font-serif);font-size:1.6rem;font-weight:700;color:var(--teal);line-height:1.1;}
+.result-meta{font-size:.72rem;color:var(--gray-mid);margin-top:.3rem;display:flex;flex-wrap:wrap;gap:.5rem;}
+.result-meta-item{display:flex;align-items:center;gap:.25rem;}
+.result-actions{display:flex;gap:.5rem;align-items:center;flex-shrink:0;}
+
+/* DEV PANEL */
+#dev-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:250px;background:rgba(6,9,14,.97);border-top:2px solid var(--gold);z-index:9000;font-family:monospace;font-size:11px;}
+#dev-panel.active{display:flex;flex-direction:column;}
+.dev-head{display:flex;justify-content:space-between;align-items:center;padding:5px 12px;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(201,169,62,.05);}
+.dev-head-title{color:var(--gold-light);font-size:10px;letter-spacing:2px;text-transform:uppercase;}
+.dev-tabs{display:flex;gap:2px;}
+.dev-tab{padding:3px 10px;border-radius:4px 4px 0 0;cursor:pointer;color:rgba(255,255,255,.4);font-size:10px;background:transparent;border:none;transition:.15s;}
+.dev-tab.active{color:var(--gold-light);background:rgba(201,169,62,.1);}
+.dev-body{flex:1;overflow-y:auto;padding:8px 12px;line-height:1.8;}
+.log-line{display:flex;gap:10px;}
+.log-ts{color:rgba(255,255,255,.25);flex-shrink:0;width:72px;}
+.log-lv{flex-shrink:0;width:46px;}
+.log-lv.INFO{color:#60a5fa;}.log-lv.WARN{color:#fbbf24;}.log-lv.ERROR{color:#f87171;}.log-lv.OK{color:#4ade80;}.log-lv.INIT{color:var(--gold-light);}
+.log-msg{color:rgba(255,255,255,.6);word-break:break-word;}
+
+/* FOOTER */
+.site-footer{background:var(--teal);border-top:3px solid var(--gold);padding:1.2rem 1.5rem;}
+.footer-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;}
+.footer-brand{display:flex;align-items:center;gap:.75rem;}
+.footer-logo-box{width:30px;height:30px;border-radius:6px;background:var(--gold);display:flex;align-items:center;justify-content:center;}
+.footer-logo-box svg{width:18px;height:18px;}
+.footer-name{font-family:var(--font-serif);font-size:.9rem;font-weight:700;color:#fff;}
+.footer-copy{font-size:.62rem;color:rgba(255,255,255,.4);line-height:1.6;text-align:right;}
+.footer-copy a{color:rgba(255,255,255,.55);text-decoration:none;}
+
+.hidden{display:none!important;}
+.mt-1{margin-top:.75rem;}
+.mb-1{margin-bottom:.75rem;}
+
+@media print{@page{size:A4;margin:10mm 8mm;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}body{background:#fff!important;}.topbar,.site-header,.hero,.hero-wave,.site-footer,#dev-panel,.btn-actions,#search-section,.loading-overlay,.modal-overlay{display:none!important;}.main-wrap{padding:0!important;max-width:100%!important;}#results-section{display:block!important;}.card{box-shadow:none!important;border:1px solid #ccc!important;page-break-inside:avoid;}.chart-card{page-break-inside:avoid;}}
+@media(max-width:768px){.main-wrap{padding:1.25rem 1rem 4rem;}.card-body{padding:1.1rem;}.result-header{flex-direction:column;}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-label" id="loading-label">Consultando DataJud…</div>
+  <div class="loading-sub" id="loading-sub">CNJ — Conselho Nacional de Justiça</div>
+</div>
+
+<!-- CONFIG MODAL -->
+<div class="modal-overlay" id="config-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-head-title">⚙ Configuração do Backend</div>
+      <button class="modal-close" onclick="closeModal('config-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info" style="margin-bottom:1.2rem">
+        <span>ℹ</span>
+        <div>O frontend consulta o CNJ DataJud via <strong>Google Apps Script</strong> como proxy. O backend já está configurado e pronto para uso. Altere os campos abaixo apenas se precisar trocar o deploy.</div>
+      </div>
+      <ol class="step-list" style="margin-bottom:1.5rem">
+        <li>Acesse <a href="https://script.google.com" target="_blank" style="color:var(--teal)">script.google.com</a> → Novo projeto → cole o conteúdo de <code style="background:var(--gray-light);padding:1px 5px;border-radius:3px;font-size:.73rem;color:var(--blue)">Code.gs</code></li>
+        <li>Implantar → App da Web → Executar como: <em>Eu</em> → Acesso: <em>Qualquer pessoa</em></li>
+        <li>Copie a URL de implantação e cole abaixo</li>
+        <li>Obtenha sua chave API DataJud em <a href="https://datajud-wiki.cnj.jus.br/api-publica/acesso" target="_blank" style="color:var(--teal)">datajud-wiki.cnj.jus.br</a></li>
+      </ol>
+      <div class="form-grid" style="gap:.9rem">
+        <div class="field full">
+          <label class="field-label">URL do Apps Script (Web App)</label>
+          <input type="url" id="cfg-gas-url" placeholder="https://script.google.com/macros/s/AKfyc.../exec">
+        </div>
+        <div class="field">
+          <label class="field-label">Chave API DataJud</label>
+          <input type="text" id="cfg-api-key" placeholder="APIKey xxxxxxx">
+        </div>
+        <div class="field">
+          <label class="field-label">ID da Planilha (Sheets)</label>
+          <input type="text" id="cfg-sheet-id" placeholder="1BxiMVs0XRA5nF…">
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('config-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarConfig()">Salvar &amp; Testar Conexão</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <span class="topbar-l">Luís Albert Advocacia — Plataforma Administrativa</span>
+  <span class="topbar-r">
+    <span class="topbar-dot"></span>
+    <span id="topbar-status">JusData Analytics</span>
+    <button class="topbar-devbtn" onclick="toggleDevPanel()" title="Dev (Ctrl+Shift+D)">DEV</button>
+  </span>
+</div>
+
+<!-- HEADER -->
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 38L20 10L27 27" stroke="#0B4A44" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M20 10L32 38" stroke="#0B4A44" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M17 28H27" stroke="#0B4A44" stroke-width="3.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">Luís Albert Advocacia</div>
+        <div class="brand-sub">JusData Analytics · Ações Judiciais</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="hdr-status">
+        <div class="hdr-dot" id="hdr-dot"></div>
+        <span id="hdr-status-txt">sem config.</span>
+      </div>
+      <span class="header-badge">CNJ DataJud</span>
+      <button class="btn btn-gold btn-sm" onclick="abrirConfig()">⚙ Configurar</button>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-eye">// Inteligência Jurídica Competitiva</div>
+    <div class="hero-title">Análise de ações contra<br>empresas no TJRJ</div>
+    <div class="hero-sub">Volume, taxa de procedência, condenação por comarca e teses jurídicas — diretamente do CNJ DataJud.</div>
+    <div class="hero-chips">
+      <span class="hero-chip" onclick="qs('LIGHT','TJRJ')">⚡ Light / TJRJ</span>
+      <span class="hero-chip" onclick="qs('OI S.A.','TJRJ')">📡 Oi / TJRJ</span>
+      <span class="hero-chip" onclick="qs('ENEL DISTRIBUIÇÃO RIO','TJRJ')">🔌 Enel RJ</span>
+      <span class="hero-chip" onclick="qs('TIM S.A.','TJRJ')">📱 TIM / TJRJ</span>
+      <span class="hero-chip" onclick="qs('CLARO S.A.','TJRJ')">🌐 Claro / TJRJ</span>
+      <span class="hero-chip" onclick="qs('CEDAE','TJRJ')">💧 CEDAE / TJRJ</span>
+    </div>
+  </div>
+  <div class="hero-wave">
+    <svg viewBox="0 0 1440 40" preserveAspectRatio="none"><path d="M0,30 C360,0 1080,40 1440,20 L1440,40 L0,40 Z"/></svg>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main-wrap">
+
+  <!-- SEARCH -->
+  <section id="search-section">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Pesquisa de Ações</div>
+          <div class="card-sub">Busque por nome fantasia, razão social ou CNPJ</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="form-grid" style="margin-bottom:1rem">
+          <div class="field full">
+            <label class="field-label">Empresa (nome fantasia ou razão social)</label>
+            <input type="text" id="empresa-input" placeholder="Ex: Light, Oi, Enel, TIM, Claro, Bradesco…" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')buscar()">
+          </div>
+        </div>
+        <div class="form-grid cols4" style="margin-bottom:1.1rem">
+          <div class="field">
+            <label class="field-label">Tribunal</label>
+            <select id="f-tribunal">
+              <option value="TJRJ">TJRJ — Rio de Janeiro</option>
+              <option value="TJSP">TJSP — São Paulo</option>
+              <option value="TJMG">TJMG — Minas Gerais</option>
+              <option value="TJRS">TJRS — Rio Grande do Sul</option>
+              <option value="TJBA">TJBA — Bahia</option>
+              <option value="TJPR">TJPR — Paraná</option>
+              <option value="TJAM">TJAM — Amazonas</option>
+              <option value="TODOS">Todos os tribunais</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Polo</label>
+            <select id="f-polo">
+              <option value="PA">Réu (passivo)</option>
+              <option value="AT">Autor (ativo)</option>
+              <option value="">Todos os polos</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Ano início</label>
+            <select id="f-ano-i"></select>
+          </div>
+          <div class="field">
+            <label class="field-label">Ano fim</label>
+            <select id="f-ano-f"></select>
+          </div>
+        </div>
+        <div class="btn-actions">
+          <button class="btn btn-primary btn-lg" onclick="buscar()" id="btn-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            Pesquisar
+          </button>
+          <button class="btn btn-ghost" onclick="limpar()">Limpar</button>
+          <button class="btn btn-outline" id="btn-export" onclick="exportCSV()" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Exportar CSV
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="results-section" class="hidden">
+
+    <div class="result-header">
+      <div>
+        <div class="result-nome" id="r-nome">—</div>
+        <div class="result-meta" id="r-meta"></div>
+      </div>
+      <div class="result-actions">
+        <span class="tag tag-gray hidden" id="tag-cache">⚡ cache</span>
+        <span class="tag tag-gold hidden" id="tag-sim">★ simulado</span>
+        <button class="btn btn-outline btn-sm" onclick="buscar()">↻ Atualizar</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨 Imprimir</button>
+      </div>
+    </div>
+
+    <div class="alert alert-warn hidden" id="sim-alert">
+      <span>⚠</span>
+      <div><strong>Dados simulados para demonstração.</strong> Configure o backend (⚙ Configurar) para obter dados reais do CNJ DataJud. Valores baseados em padrões históricos do TJRJ.</div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--kpi-c:var(--teal)">
+        <div class="kpi-label">Ações / Ano (Média)</div>
+        <div class="kpi-val" id="kpi-media">—</div>
+        <div class="kpi-sub" id="kpi-media-sub">período selecionado</div>
+      </div>
+      <div class="kpi-card hl">
+        <div class="kpi-label">Taxa de Procedência</div>
+        <div class="kpi-val" id="kpi-proc">—</div>
+        <div class="kpi-sub">ganho parcial ou total do consumidor</div>
+      </div>
+      <div class="kpi-card gd">
+        <div class="kpi-label">Condenação Média</div>
+        <div class="kpi-val" id="kpi-cond">—</div>
+        <div class="kpi-sub">danos morais + restituição</div>
+      </div>
+      <div class="kpi-card" style="--kpi-c:var(--blue-brd)">
+        <div class="kpi-label">Comarcas Ativas</div>
+        <div class="kpi-val" id="kpi-comarca">—</div>
+        <div class="kpi-sub" id="kpi-comarca-sub">no estado selecionado</div>
+      </div>
+    </div>
+
+    <!-- Charts row 1 -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-head">
+          <div>
+            <div class="chart-title" id="ch1-title">Volume de ações por ano</div>
+            <div class="chart-sub" id="ch1-sub">ajuizamentos por ano</div>
+          </div>
+          <span class="tag tag-blue">Série Temporal</span>
+        </div>
+        <div class="chart-body"><canvas id="chart-trend"></canvas></div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#0B4A44"></div>Total ações</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#C9A93E"></div><span id="legend-toi">Produto específico</span></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <div>
+            <div class="chart-title" id="ch2-title">Resultado das ações</div>
+            <div class="chart-sub">com decisão final</div>
+          </div>
+        </div>
+        <div class="chart-body" style="display:flex;align-items:center;justify-content:center;min-height:240px">
+          <canvas id="chart-outcomes" style="max-height:230px;max-width:230px"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart comarca -->
+    <div class="chart-card mb-1" style="margin-bottom:1.25rem">
+      <div class="chart-head">
+        <div>
+          <div class="chart-title">Condenação média por comarca (R$)</div>
+          <div class="chart-sub">valor médio de danos morais + restituição</div>
+        </div>
+        <span class="tag tag-gold">Top comarcas</span>
+      </div>
+      <div class="chart-body" style="min-height:230px">
+        <canvas id="chart-comarca" style="max-height:240px"></canvas>
+      </div>
+    </div>
+
+    <!-- Table comarcas -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Top Comarcas por Volume de Ações</div>
+          <div class="card-sub">ordenado por volume de ações ajuizadas</div>
+        </div>
+        <span class="tag tag-teal" id="tag-ano">2023</span>
+      </div>
+      <div class="card-body-tight">
+        <div class="result-table-wrap">
+          <table class="result-table">
+            <thead>
+              <tr>
+                <th>COMARCA</th><th>AÇÕES</th><th>PROCEDÊNCIA</th><th>VAL. MÉDIO COND.</th><th>PERFIL</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-comarcas"></tbody>
+          </table>
+        </div>
+        <div style="padding:.5rem 1rem;font-size:.65rem;color:var(--gray-mid);border-top:1px solid var(--gray-brd)">
+          * Dados sujeitos à cobertura do tribunal no CNJ DataJud. Procedência calculada sobre processos com decisão de mérito.
+        </div>
+      </div>
+    </div>
+
+    <!-- Teses jurídicas -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Teses com Maior Taxa de Procedência</div>
+          <div class="card-sub" id="teses-sub">argumentos jurídicos para esta empresa/produto</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="margin-bottom:1.25rem">
+          <div class="teses-section-title"><span>⚖</span> TESES PRINCIPAIS (FORÇA ALTA)</div>
+          <div id="teses-principais"></div>
+        </div>
+        <div id="teses-compl-wrap">
+          <div class="teses-section-title"><span>➕</span> TESES COMPLEMENTARES (CUMULATIVAS)</div>
+          <div id="teses-complementares"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabela anual -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Detalhe Anual — Resultados</div>
+          <div class="card-sub">procedência estimada proporcional · decisões de mérito</div>
+        </div>
+      </div>
+      <div class="card-body-tight">
+        <div class="result-table-wrap">
+          <table class="result-table">
+            <thead>
+              <tr><th>ANO</th><th>TOTAL</th><th>PROCEDENTE</th><th>IMPROCEDENTE</th><th>PROC. PARCIAL</th><th>ACORDO</th><th>EM ANDAMENTO</th><th>% FAVORÁVEL</th></tr>
+            </thead>
+            <tbody id="tbody-anual"></tbody>
+          </table>
+        </div>
+        <div style="padding:.5rem 1rem;font-size:.65rem;color:var(--gray-mid);border-top:1px solid var(--gray-brd)">
+          ⚠ Procedência por ano estimada em v1.0 — query individualizada por ano no roadmap v1.1.
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;font-size:.65rem;color:var(--gray-mid);margin-top:.5rem;padding-top:1rem;border-top:1px solid var(--gray-brd)">
+      Fonte: <a href="https://datajud-wiki.cnj.jus.br/" target="_blank" style="color:var(--teal)">CNJ DataJud</a> · Dados públicos · <span id="footer-ts">—</span>
+    </div>
+
+  </section>
+
+</div><!-- /main-wrap -->
+
+<!-- DEV PANEL -->
+<div id="dev-panel">
+  <div class="dev-head">
+    <span class="dev-head-title">⬛ LAADV JusData Dev — v<span id="app-ver">1.0.0</span></span>
+    <div class="dev-tabs">
+      <button class="dev-tab active" onclick="swTab('log',this)">LOG</button>
+      <button class="dev-tab" onclick="swTab('changelog',this)">CHANGELOG</button>
+      <button class="dev-tab" onclick="swTab('config',this)">CONFIG</button>
+      <button class="dev-tab" onclick="swTab('response',this)">RESPONSE</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" onclick="toggleDevPanel()">✕</button>
+  </div>
+  <div class="dev-body" id="dev-log"></div>
+  <div class="dev-body hidden" id="dev-changelog" style="white-space:pre;font-size:10px;color:rgba(255,255,255,.5)"></div>
+  <div class="dev-body hidden" id="dev-config" style="white-space:pre;font-size:10px;color:rgba(255,255,255,.5)"></div>
+  <div class="dev-body hidden" id="dev-response" style="white-space:pre-wrap;word-break:break-all;font-size:10px;color:rgba(255,255,255,.5)"></div>
+</div>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="footer-logo-box">
+        <svg viewBox="0 0 48 48" fill="none"><path d="M8 38L20 10L27 27" stroke="#0B4A44" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 10L32 38" stroke="#0B4A44" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 28H27" stroke="#0B4A44" stroke-width="3.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="footer-name">Luís Albert Advocacia</div>
+    </div>
+    <div class="footer-copy">
+      LAADV — JusData Analytics v1.0 · Plataforma Administrativa Interna<br>
+      Dados: <a href="https://datajud-wiki.cnj.jus.br/" target="_blank">CNJ DataJud</a> · Manaus – AM
+    </div>
+  </div>
+</footer>
+
+<script>
+"use strict";
+/* ================================================================
+   META
+   ================================================================ */
+const VER = '1.0.0';
+const CHANGELOG = `[v1.0.0] 2026-03-18
++ Design LAADV completo (teal/gold, Cormorant+DM Sans)
++ KPIs, gráficos, tabelas, teses jurídicas
++ Dados simulados + integração DataJud via GAS
++ Cache localStorage 1h + exportação CSV
+
+[BUGS NÃO REGREDIR]
+- Chart.js: SEMPRE destroy() antes de recriar
+- DataJud partes: nested query obrigatória
+- TJDFT: índice api_publica_tjdft
+- outcomes simulados = frações; reais = contagens
+
+[ROADMAP]
+v1.1.0 — Query per-ano outcomes exatos
+v1.2.0 — Busca por CNPJ
+v1.3.0 — Multi-tribunal paralelo`;
+
+const ERR_LOG = [];
+let lastResp  = null;
+let curData   = null;
+
+/* ================================================================
+   CONFIG
+   ================================================================ */
+const CFG_KEY = 'laadv_jd_cfg_v1';
+let CFG = { gasUrl:'https://script.google.com/macros/s/AKfycbzifAehNzlgStKxWRW6vQOn9mWV0otCKjT7gu7QSzcZkrw9AZ4r8Nz1C3FpLJlS_pEf5Q/exec', apiKey:'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==', sheetId:'1v2UI_OSF6r_WEfTc51SDAdY8uTZqIcARxNHGhIZROys', cacheTTL:3600000 };
+
+function loadCfg() {
+  try { const s = localStorage.getItem(CFG_KEY); if(s) { const saved=JSON.parse(s); if(saved.gasUrl) CFG.gasUrl=saved.gasUrl; if(saved.apiKey) CFG.apiKey=saved.apiKey; if(saved.sheetId) CFG.sheetId=saved.sheetId; if(saved.cacheTTL) CFG.cacheTTL=saved.cacheTTL; } } catch(e){}
+  updStatus();
+  dlog('INIT',`Config: GAS=${CFG.gasUrl?'✓':'⚠ não configurada'}`);
+}
+
+function salvarConfig() {
+  CFG.gasUrl  = document.getElementById('cfg-gas-url').value.trim();
+  CFG.apiKey  = document.getElementById('cfg-api-key').value.trim();
+  CFG.sheetId = document.getElementById('cfg-sheet-id').value.trim();
+  if (!CFG.gasUrl) { alert('URL do Apps Script é obrigatória.'); return; }
+  localStorage.setItem(CFG_KEY, JSON.stringify(CFG));
+  closeModal('config-modal');
+  updStatus();
+  testConn();
+}
+
+async function testConn() {
+  if (!CFG.gasUrl) { updStatus('err','sem config'); return; }
+  updStatus('loading','testando…');
   try {
-    switch (action) {
-      case 'ping':
-        result = { ok: true, version: '1.0.2', ts: new Date().toISOString(), sheet: sheetId ? 'ok' : 'nao_configurada' };
-        break;
-      case 'search':
-        result = handleSearch(params, apiKey, sheetId);
-        break;
-      case 'stats':
-        result = handleStats(sheetId);
-        break;
-      default:
-        result = { error: `Ação desconhecida: "${action}"` };
+    const r = await ftch(`${CFG.gasUrl}?action=ping&apiKey=${encodeURIComponent(CFG.apiKey)}`,{},8000);
+    const d = await r.json();
+    if (d.ok) { updStatus('ok','conectado'); dlog('OK','GAS ping: '+JSON.stringify(d)); }
+    else       { updStatus('err','erro backend'); dlog('ERROR','Ping fail: '+JSON.stringify(d)); }
+  } catch(e) { updStatus('err','inacessível'); dlog('ERROR','Falha GAS: '+e.message); }
+}
+
+function updStatus(st, tx) {
+  const dot = document.getElementById('hdr-dot');
+  const txt = document.getElementById('hdr-status-txt');
+  const top = document.getElementById('topbar-status');
+  dot.className = 'hdr-dot';
+  if (!st) { st = CFG.gasUrl?'ok':'none'; tx = CFG.gasUrl?'configurado':'sem config.'; }
+  if (st==='ok')  dot.classList.add('ok');
+  if (st==='err') dot.classList.add('err');
+  txt.textContent = tx||'sem config.';
+  top.textContent = 'JusData Analytics'+(tx?' · '+tx:'');
+}
+
+/* ================================================================
+   CACHE
+   ================================================================ */
+function ckKey(e,t,ai,af,p) { return `laadv_jd_${e.toUpperCase()}|${t}|${ai}|${af}|${p}`; }
+
+function ckGet(k) {
+  try {
+    const i = JSON.parse(localStorage.getItem(k));
+    if (!i) return null;
+    if (Date.now()-i.ts > CFG.cacheTTL) { localStorage.removeItem(k); return null; }
+    dlog('INFO','Cache HIT: '+k); return i.data;
+  } catch(e) { return null; }
+}
+function ckSet(k,d) { try { localStorage.setItem(k,JSON.stringify({ts:Date.now(),data:d})); } catch(e){} }
+
+/* ================================================================
+   FETCH
+   ================================================================ */
+async function ftch(url,opts,ms) {
+  const c = new AbortController();
+  const t = setTimeout(()=>c.abort(),ms);
+  try { return await fetch(url,{...opts,signal:c.signal}); } finally { clearTimeout(t); }
+}
+
+/* ================================================================
+   SEARCH
+   ================================================================ */
+async function buscar() {
+  const emp = document.getElementById('empresa-input').value.trim();
+  const tri = document.getElementById('f-tribunal').value;
+  const ai  = document.getElementById('f-ano-i').value;
+  const af  = document.getElementById('f-ano-f').value;
+  const pol = document.getElementById('f-polo').value;
+
+  if (!emp) {
+    const el = document.getElementById('empresa-input');
+    el.style.borderColor='var(--error)'; el.focus();
+    setTimeout(()=>el.style.borderColor='',1600); return;
+  }
+
+  if (!CFG.gasUrl) {
+    dlog('WARN','Sem backend → dados simulados');
+    const sim = simData(emp, tri, parseInt(ai), parseInt(af));
+    renderR(sim, false, true); return;
+  }
+
+  const ck = ckKey(emp,tri,ai,af,pol);
+  const cached = ckGet(ck);
+  if (cached) { renderR(cached,true,false); return; }
+
+  showLoad('Consultando CNJ DataJud…','aguardando resposta');
+  document.getElementById('btn-search').disabled = true;
+  try {
+    const params = new URLSearchParams({action:'search',empresa:emp,tribunal:tri,anoInicio:ai,anoFim:af,polo:pol,apiKey:CFG.apiKey,sheetId:CFG.sheetId});
+    const res = await ftch(`${CFG.gasUrl}?${params}`,{},45000);
+    setLoad('Processando resultados…','calculando métricas');
+    const data = await res.json(); lastResp = data;
+    if (data.error) throw new Error(data.error);
+    ckSet(ck,data);
+    renderR(data,false,false);
+    dlog('OK',`Busca: ${emp}/${tri} → ${data.total}`);
+  } catch(e) {
+    dlog('ERROR','Busca: '+e.message);
+    ERR_LOG.push({ts:new Date().toISOString(),msg:e.message});
+    alert('Erro ao consultar DataJud:\n'+e.message);
+  } finally {
+    hideLoad();
+    document.getElementById('btn-search').disabled=false;
+  }
+}
+
+/* ================================================================
+   DADOS SIMULADOS
+   ================================================================ */
+function simData(emp,tri,ai,af) {
+  const P = {
+    'LIGHT':{
+      por:[{a:'2019',t:5980,s:2050},{a:'2020',t:4970,s:1720},{a:'2021',t:7150,s:3100},{a:'2022',t:8650,s:4180},{a:'2023',t:9480,s:4620},{a:'2024',t:4120,s:1880}],
+      out:{p:.52,i:.22,pp:.19,a:.07},cond:2340,comarcas:38,
+      com:[{n:'Capital / Rio de Janeiro',ac:1240,pct:74,cv:2580,pf:'JEC + Vara Cível'},{n:'Nova Iguaçu',ac:487,pct:69,cv:2100,pf:'JEC predominante'},{n:'Duque de Caxias',ac:412,pct:71,cv:2200,pf:'JEC predominante'},{n:'Campos dos Goytacazes',ac:318,pct:61,cv:1950,pf:'JEC + Cível'},{n:'Belford Roxo',ac:274,pct:78,cv:2400,pf:'JEC predominante'},{n:'São João de Meriti',ac:198,pct:65,cv:1800,pf:'JEC'},{n:'Niterói',ac:187,pct:63,cv:2750,pf:'JEC + Cível'},{n:'Petrópolis',ac:143,pct:55,cv:1650,pf:'JEC + Cível'}],
+      tk:'light_toi',
     }
-  } catch (err) {
-    gasLog(sheetId, 'ERROR', `Exceção: ${err.message}`);
-    result = { error: err.message };
+  };
+  let pr = null;
+  for (const k in P) { if (emp.toUpperCase().includes(k)) { pr=P[k]; break; } }
+  if (!pr) {
+    const anos = [];
+    for (let y=ai;y<=af;y++) { const b=Math.floor(Math.random()*3000)+800; anos.push({a:String(y),t:b,s:Math.floor(b*.4)}); }
+    pr = { por:anos, out:{p:.48,i:.28,pp:.17,a:.07}, cond:Math.floor(Math.random()*1200)+1600, comarcas:Math.floor(Math.random()*12)+18,
+      com:[{n:'Capital',ac:Math.floor(Math.random()*600)+300,pct:Math.floor(Math.random()*18)+52,cv:Math.floor(Math.random()*900)+1800,pf:'JEC + Cível'}],
+      tk:'generica' };
   }
-
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
+  const filt = pr.por.filter(d=>parseInt(d.a)>=ai && parseInt(d.a)<=af);
+  const tot  = filt.reduce((s,d)=>s+d.t,0);
+  return {
+    empresa:emp, tribunal:tri, anoInicio:ai, anoFim:af, timestamp:new Date().toISOString(),
+    isSimulated:true, total:tot,
+    porAno: filt.map(d=>({ano:d.a,count:d.t,toi:d.s})),
+    outcomes:{procedente:pr.out.p,procedente_parcial:pr.out.pp,improcedente:pr.out.i,acordo:pr.out.a},
+    condenacaoMedia:pr.cond, comarcasAtivas:pr.comarcas,
+    comarcas:pr.com.map(c=>({nome:c.n,acoes:c.ac,pct:c.pct,cond:c.cv,perfil:c.pf})),
+    tesesKey:pr.tk, media:Math.round(tot/(filt.length||1)),
+  };
 }
 
+/* ================================================================
+   RENDER
+   ================================================================ */
+let cT=null,cO=null,cC=null;
 
-// ================================================================
-// HANDLER: SEARCH
-// ================================================================
-function handleSearch(params, apiKey, sheetId) {
-  const empresa  = (params.empresa  || '').trim().toUpperCase();
-  const tribunal = (params.tribunal || 'TJRJ').toUpperCase();
-  const anoI     = parseInt(params.anoInicio) || (new Date().getFullYear() - 5);
-  const anoF     = parseInt(params.anoFim)    || new Date().getFullYear();
-  const polo     = params.polo || 'PA';
-  const grau     = params.grau || '';
+function renderR(data,fromCache,isSim) {
+  curData = data;
+  const sec = document.getElementById('results-section');
+  sec.classList.remove('hidden'); sec.style.animation='fadeIn .3s ease';
 
-  if (!empresa)    throw new Error('Parâmetro "empresa" é obrigatório');
-  if (anoI > anoF) throw new Error('Ano início deve ser ≤ ano fim');
-  if (tribunal !== 'TODOS' && !CONFIG.TRIBUNAIS[tribunal]) {
-    throw new Error(`Tribunal "${tribunal}" não suportado.`);
-  }
+  document.getElementById('r-nome').textContent = data.empresa.toUpperCase();
+  document.getElementById('r-meta').innerHTML = `
+    <span class="result-meta-item">📍 ${data.tribunal}</span>
+    <span class="result-meta-item">📅 ${data.anoInicio}–${data.anoFim}</span>
+    <span class="result-meta-item">🕒 ${new Date(data.timestamp).toLocaleString('pt-BR')}</span>
+    <span class="result-meta-item">📊 ${data.total.toLocaleString('pt-BR')} ações</span>`;
 
-  const ck     = buildCacheKey(empresa, tribunal, anoI, anoF, polo, grau);
-  const cached = getCachedResult(sheetId, ck);
-  if (cached) {
-    gasLog(sheetId, 'INFO', `Cache HIT: ${ck}`);
-    return { ...cached, fromCache: true };
-  }
+  document.getElementById('tag-cache').classList.toggle('hidden',!fromCache);
+  document.getElementById('tag-sim').classList.toggle('hidden',!isSim);
+  const sa = document.getElementById('sim-alert');
+  sa.classList.toggle('hidden',!isSim);
+  document.getElementById('footer-ts').textContent = 'Consulta: '+new Date(data.timestamp).toLocaleString('pt-BR');
 
-  let result;
-  if (tribunal === 'TODOS') {
-    result = searchAllTribunais(empresa, anoI, anoF, polo, grau, apiKey);
-  } else {
-    result = queryDataJud(tribunal, empresa, anoI, anoF, polo, grau, apiKey);
-  }
+  // KPIs
+  const pA   = data.porAno||[];
+  const tot  = data.total||0;
+  const anos = pA.length||1;
+  const med  = data.media || Math.round(tot/anos);
+  const out  = data.outcomes||{};
+  const p    = out.procedente||0;
+  const pp   = out.procedente_parcial||0;
+  const i    = out.improcedente||0;
+  const a    = out.acordo||0;
+  const isFrac = (p+pp+i+a) <= 1.05;
+  const pct  = isFrac ? (((p+pp)*100).toFixed(0)) : (((p+pp)/(p+pp+i+a||1))*100).toFixed(0);
 
-  result.empresa   = empresa;
-  result.tribunal  = tribunal;
-  result.anoInicio = anoI;
-  result.anoFim    = anoF;
-  result.polo      = polo;
-  result.grau      = grau;
-  result.timestamp = new Date().toISOString();
-  result.media     = result.porAno.length > 0
-    ? Math.round(result.total / result.porAno.length)
-    : result.total;
+  animN('kpi-media', med);
+  document.getElementById('kpi-media-sub').textContent = `${data.anoInicio}–${data.anoFim} · ${data.tribunal}`;
+  document.getElementById('kpi-proc').textContent = pct+'%';
+  document.getElementById('kpi-cond').textContent = data.condenacaoMedia ? 'R$ '+data.condenacaoMedia.toLocaleString('pt-BR') : '—';
+  document.getElementById('kpi-comarca').textContent = data.comarcasAtivas||'—';
+  document.getElementById('kpi-comarca-sub').textContent = 'no estado · '+data.tribunal;
 
-  saveToCache(sheetId, ck, result);
-  saveToHistorico(sheetId, result);
+  const empNome = data.empresa.split(' ')[0];
+  document.getElementById('ch1-title').textContent = `Volume de ações — ${empNome} vs produto específico no ${data.tribunal}`;
+  document.getElementById('ch1-sub').textContent   = `${data.anoInicio}–${data.anoFim} · ajuizamentos por ano`;
+  document.getElementById('ch2-title').textContent = `Resultado das ações (${data.anoFim})`;
+  document.getElementById('tag-ano').textContent   = data.anoFim;
+  document.getElementById('teses-sub').textContent = 'argumentos para ações contra: '+data.empresa;
 
-  gasLog(sheetId, 'OK', `Busca: ${empresa}/${tribunal} → ${result.total} ações`);
-  return result;
+  rChartTrend(pA);
+  rChartOut(out, tot, isFrac);
+  rChartComarca(data.comarcas||[]);
+  rTableComarcas(data.comarcas||[]);
+  rTableAnual(pA, out, tot, isFrac);
+  rTeses(data.tesesKey||'generica');
+
+  document.getElementById('btn-export').disabled = false;
+  sec.scrollIntoView({behavior:'smooth',block:'start'});
+  dlog('INFO',`Render OK: ${data.empresa} / ${data.tribunal} · total=${tot} · proc=${pct}%`);
 }
 
-
-// ================================================================
-// QUERY PRINCIPAL — CNJ DATAJUD
-//
-// FIX v1.0.1:
-//   "partes" e "movimentos" NÃO são campos nested no TJRJ.
-//   Query correta: match direto nos campos sem wrapper nested.
-//   Ref mapeamento real: https://datajud-wiki.cnj.jus.br/api-publica/endpoints
-// ================================================================
-function queryDataJud(tribunal, empresa, anoI, anoF, polo, grau, apiKey) {
-  const indice = CONFIG.TRIBUNAIS[tribunal];
-  const url    = `${CONFIG.CNJ_BASE_URL}/${indice}/_search`;
-
-  // ── Cláusulas must ───────────────────────────────────────────
-  const mustClauses = [];
-
-  // Filtro principal: nome da empresa nas partes
-  // CORRETO: match direto (partes NÃO é nested no DataJud TJRJ)
-  mustClauses.push({
-    match: { 'partes.nome': { query: empresa, operator: 'and' } }
-  });
-
-  // Filtro de período
-  mustClauses.push({
-    range: {
-      dataAjuizamento: {
-        gte: `${anoI}`,
-        lte: `${anoF}`
+/* ── CHART TREND ── */
+function rChartTrend(pA) {
+  const ctx = document.getElementById('chart-trend').getContext('2d');
+  if (cT) { cT.destroy(); cT=null; }
+  cT = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: pA.map(d=>d.ano),
+      datasets:[
+        { label:'Total ações', data:pA.map(d=>d.count||0), backgroundColor:'rgba(11,74,68,.75)', borderColor:'#0B4A44', borderWidth:1, borderRadius:3 },
+        { label:'Produto específico', data:pA.map(d=>d.toi||Math.round((d.count||0)*.4)), backgroundColor:'rgba(201,169,62,.8)', borderColor:'#C9A93E', borderWidth:1, borderRadius:3 }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{backgroundColor:'#0B4A44',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',borderColor:'#C9A93E',borderWidth:1, callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toLocaleString('pt-BR')}`}} },
+      scales:{
+        x:{ grid:{color:'rgba(0,0,0,.04)'}, ticks:{color:'#8899AA',font:{family:'DM Sans',size:12}} },
+        y:{ grid:{color:'rgba(0,0,0,.04)'}, ticks:{color:'#8899AA',font:{family:'DM Sans',size:11},callback:v=>v.toLocaleString('pt-BR')} }
       }
     }
   });
+}
 
-  // Filtro de grau (opcional)
-  if (grau) {
-    mustClauses.push({ term: { grau: grau } });
-  }
-
-  // ── Cláusulas should (polo é opcional — enriquece relevância) ─
-  // Nota: polo como must causaria falsos negativos em alguns TJs
-  // onde o campo partes.polo não existe ou tem nomenclatura diferente
-  const shouldClauses = [];
-  if (polo) {
-    shouldClauses.push({ match: { 'partes.polo': polo } });
-  }
-
-  // ── Agregações ───────────────────────────────────────────────
-  // FIX v1.0.1: movimentos.codigo — terms direto (não nested)
-  const todosCodigosTpu = [
-    ...CONFIG.MOVIMENTOS.PROCEDENTE,
-    ...CONFIG.MOVIMENTOS.IMPROCEDENTE,
-    ...CONFIG.MOVIMENTOS.PROCEDENTE_PARCIAL,
-    ...CONFIG.MOVIMENTOS.EXTINCAO_SEM_MERITO,
-    ...CONFIG.MOVIMENTOS.ACORDO,
-  ];
-
-  const aggs = {
-    // Distribuição anual
-    por_ano: {
-      date_histogram: {
-        field:             'dataAjuizamento',
-        calendar_interval: 'year',
-        format:            'yyyy',
-        min_doc_count:     0,
-        extended_bounds: {
-          min: `${anoI}`,
-          max: `${anoF}`
+/* ── CHART DONUT ── */
+function rChartOut(out, tot, isFrac) {
+  const ctx = document.getElementById('chart-outcomes').getContext('2d');
+  if (cO) { cO.destroy(); cO=null; }
+  const p   = isFrac ? Math.round((out.procedente||0)*tot)   : (out.procedente||0);
+  const pp  = isFrac ? Math.round((out.procedente_parcial||0)*tot) : (out.procedente_parcial||0);
+  const im  = isFrac ? Math.round((out.improcedente||0)*tot) : (out.improcedente||0);
+  const ac  = isFrac ? Math.round((out.acordo||0)*tot)       : (out.acordo||0);
+  const ext = isFrac ? Math.round((out.extincao||0)*tot)     : (out.extincao||0);
+  const and = Math.max(0, tot-p-pp-im-ac-ext);
+  const lbl = ['Procedente','Improcedente','Proc. Parcial','Acordo','Extinção s/ Mérito','Em Andamento'];
+  const val = [p,im,pp,ac,ext,and];
+  const col = ['#1A6B48','#8C1A1A','#C9A93E','#1A4B8C','#6B4F00','#8899AA'];
+  const f = {l:[],v:[],c:[]};
+  val.forEach((v,i)=>{ if(v>0){f.l.push(lbl[i]);f.v.push(v);f.c.push(col[i]);} });
+  cO = new Chart(ctx,{
+    type:'doughnut',
+    data:{ labels:f.l, datasets:[{data:f.v,backgroundColor:f.c.map(c=>c+'cc'),borderColor:f.c,borderWidth:2,hoverOffset:6}] },
+    options:{
+      responsive:true, maintainAspectRatio:true, cutout:'58%',
+      plugins:{
+        legend:{position:'bottom',labels:{color:'#3D4F63',font:{family:'DM Sans',size:11},boxWidth:12,padding:10}},
+        tooltip:{backgroundColor:'#0B4A44',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',
+          callbacks:{label:c=>{const t=c.dataset.data.reduce((a,b)=>a+b,0);return ` ${c.parsed.toLocaleString('pt-BR')} (${((c.parsed/t)*100).toFixed(1)}%)`;}}
         }
       }
-    },
+    }
+  });
+}
 
-    // Por grau (1G, 2G, JE)
-    por_grau: {
-      terms: { field: 'grau', size: 10 }
+/* ── CHART COMARCA ── */
+function rChartComarca(comarcas) {
+  const ctx = document.getElementById('chart-comarca').getContext('2d');
+  if (cC) { cC.destroy(); cC=null; }
+  if (!comarcas.length) return;
+  const s = [...comarcas].sort((a,b)=>b.cond-a.cond).slice(0,7);
+  cC = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels: s.map(c=>c.nome.split('/')[0].trim()),
+      datasets:[{
+        label:'Condenação média (R$)',
+        data:s.map(c=>c.cond||0),
+        backgroundColor:s.map((_,i)=>i===0?'rgba(11,74,68,.85)':'rgba(201,169,62,.65)'),
+        borderColor:s.map((_,i)=>i===0?'#0B4A44':'#C9A93E'),
+        borderWidth:1, borderRadius:3,
+      }]
     },
-
-    // Movimentos/outcomes — terms DIRETO (não nested)
-    movimentos_codigos: {
-      terms: {
-        field: 'movimentos.codigo',
-        size:  500,
+    options:{
+      responsive:true, maintainAspectRatio:false, indexAxis:'y',
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#0B4A44',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',callbacks:{label:c=>` R$ ${c.parsed.x.toLocaleString('pt-BR')}`}}},
+      scales:{
+        x:{ grid:{color:'rgba(0,0,0,.04)'}, ticks:{color:'#8899AA',font:{family:'DM Sans',size:11},callback:v=>'R$ '+v.toLocaleString('pt-BR')} },
+        y:{ grid:{display:false}, ticks:{color:'#3D4F63',font:{family:'DM Sans',size:12},padding:8} }
       }
     }
-  };
+  });
+}
 
-  const queryBody = {
-    size: 10,
-    _source: [
-      'numero', 'tribunal', 'grau',
-      'classeProcessual.nome', 'dataAjuizamento',
-      'movimentos.codigo', 'movimentos.nome',
-      'partes.nome', 'partes.polo'
+/* ── TABLE COMARCAS ── */
+function rTableComarcas(com) {
+  const tb = document.getElementById('tbody-comarcas');
+  if (!com.length) { tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--gray-mid)">Sem dados</td></tr>'; return; }
+  tb.innerHTML = com.map(c=>{
+    const pct=c.pct||0;
+    const pc=pct>=65?'pct-high':pct>=50?'pct-mid':'pct-low';
+    return `<tr>
+      <td class="td-strong">${c.nome}</td>
+      <td>${(c.acoes||0).toLocaleString('pt-BR')}</td>
+      <td><span class="pct-pill ${pc}">${pct}%</span></td>
+      <td style="color:var(--teal);font-weight:700">R$ ${(c.cond||0).toLocaleString('pt-BR')}</td>
+      <td><span class="tag tag-gray" style="font-size:.6rem">${c.perfil||'—'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── TABLE ANUAL ── */
+function rTableAnual(pA, out, tot, isFrac) {
+  const tb = document.getElementById('tbody-anual');
+  if (!pA.length) { tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:1.5rem;color:var(--gray-mid)">Sem dados</td></tr>'; return; }
+  const p=out.procedente||0,pp=out.procedente_parcial||0,im=out.improcedente||0,ac=out.acordo||0,ext=out.extincao||0;
+  tb.innerHTML = pA.map(row=>{
+    const fr = tot>0?row.count/tot:0;
+    const cv = isFrac?tot:1;
+    const rp =Math.round(p*cv*fr),rpp=Math.round(pp*cv*fr),ri=Math.round(im*cv*fr),ra=Math.round(ac*cv*fr),re=Math.round((ext||0)*cv*fr);
+    const rd=rp+rpp+ri+ra+re, rand=Math.max(0,row.count-rd);
+    const pctF=rd>0?(((rp+rpp)/rd)*100).toFixed(1):null;
+    const pc=pctF&&parseFloat(pctF)>=65?'pct-high':pctF&&parseFloat(pctF)>=50?'pct-mid':'pct-low';
+    return `<tr>
+      <td class="td-strong">${row.ano}</td>
+      <td><strong>${row.count.toLocaleString('pt-BR')}</strong></td>
+      <td><span class="tag tag-green">${rp.toLocaleString('pt-BR')}</span></td>
+      <td><span class="tag tag-red">${ri.toLocaleString('pt-BR')}</span></td>
+      <td><span class="tag tag-gold">${rpp.toLocaleString('pt-BR')}</span></td>
+      <td>${ra.toLocaleString('pt-BR')}</td>
+      <td><span class="tag tag-gray">${rand.toLocaleString('pt-BR')}</span></td>
+      <td>${pctF?`<span class="pct-pill ${pc}">${pctF}%</span>`:'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ================================================================
+   TESES
+   ================================================================ */
+const TESES = {
+  light_toi:{
+    p:[
+      {t:'Cobrança sem amparo em resolução ANEEL vigente',f:'green',
+       d:'A TOI não está prevista como tarifa homologada nas Resoluções Normativas da ANEEL. A cobrança de valores fora da estrutura tarifária aprovada viola o art. 13 da Lei nº 9.074/95 e o princípio da legalidade tarifária. O consumidor questiona a ausência de ato regulatório específico que autorize a cobrança discriminada na conta.',
+       n:['RN ANEEL 414/2010','Lei 9.074/95 art. 13','CDC art. 39 I']},
+      {t:'Falta de transparência e informação inadequada ao consumidor',f:'green',
+       d:'A cobrança aparece na fatura sem descrição clara do serviço prestado, do valor e da base de cálculo. O CDC exige informação prévia, adequada e em destaque sobre valores cobrados. A ausência de clareza configura prática abusiva nos termos do art. 51 do CDC e falha no dever de informar previsto no art. 6º III.',
+       n:['CDC art. 6º III','CDC art. 51','CDC art. 39 V']},
+      {t:'Cobrança por serviço que é obrigação da concessionária (dupla remuneração)',f:'green',
+       d:'A instalação e manutenção de medidores são encargos da concessionária, já remunerados pela tarifa de distribuição (TUSD/TUST). Cobrar TOI separadamente implica dupla remuneração pelo mesmo serviço. Tese especialmente forte quando a ligação foi solicitada pelo próprio sistema de distribuição.',
+       n:['Decreto 62.724/68','RN ANEEL 414/2010 art. 5º','Lei 8.987/95']},
     ],
-    query: {
-      bool: {
-        must:   mustClauses,
-        ...(shouldClauses.length > 0 ? { should: shouldClauses, minimum_should_match: 0 } : {})
-      }
-    },
-    aggs,
-    sort: [{ dataAjuizamento: { order: 'desc' } }]
-  };
-
-  // ── Requisição ───────────────────────────────────────────────
-  const options = {
-    method:             'post',
-    headers: {
-      'Authorization':  apiKey,
-      'Content-Type':   'application/json'
-    },
-    payload:            JSON.stringify(queryBody),
-    muteHttpExceptions: true
-  };
-
-  const response   = UrlFetchApp.fetch(url, options);
-  const statusCode = response.getResponseCode();
-  const rawBody    = response.getContentText();
-
-  if (statusCode === 401) throw new Error('Chave API DataJud inválida (HTTP 401). Verificar: https://datajud-wiki.cnj.jus.br/api-publica/acesso');
-  if (statusCode === 429) throw new Error('Rate limit DataJud atingido (HTTP 429). Aguarde e tente novamente.');
-  if (statusCode !== 200) throw new Error(`DataJud HTTP ${statusCode}: ${rawBody.substring(0, 400)}`);
-
-  let data;
-  try {
-    data = JSON.parse(rawBody);
-  } catch(e) {
-    throw new Error(`Resposta DataJud inválida (JSON): ${rawBody.substring(0, 150)}`);
+    c:[
+      {t:'Enriquecimento sem causa — restituição em dobro',f:'gold',
+       d:'Com base no art. 42 § único do CDC, o consumidor tem direito à devolução em dobro dos valores cobrados indevidamente, acrescidos de correção monetária e juros legais, desde que comprovada cobrança excessiva com má-fé da concessionária.',
+       n:['CDC art. 42 § único','CC art. 884']},
+      {t:'Danos morais por cobrança indevida e restrição de serviço essencial',f:'gold',
+       d:'A cobrança indevida de tarifa não regulamentada, combinada com ameaça ou efetiva interrupção do fornecimento de energia elétrica, causa dano moral in re ipsa, prescindindo de prova do abalo.',
+       n:['CC art. 186','CC art. 927','Lei 8.987/95 art. 22']},
+      {t:'Prescrição quinquenal — delimitação do período recuperável',f:'orange',
+       d:'A pretensão de restituição de valores cobrados indevidamente prescreve em 5 anos (art. 27 CDC). A ação deve incluir pedido expresso de delimitação do período quinquenal para maximizar o valor recuperável. Atenção: verificar data de cada cobrança na fatura.',
+       n:['CDC art. 27','CC art. 206 § 5º I']},
+    ]
+  },
+  generica:{
+    p:[
+      {t:'Cobrança indevida sem contrato ou sem prestação do serviço',f:'green',
+       d:'A cobrança de valores sem contratação prévia ou sem efetiva prestação do serviço configura prática abusiva, vedada pelo art. 39 III do CDC. O consumidor não é obrigado a pagar por serviço que não solicitou ou não recebeu adequadamente.',
+       n:['CDC art. 39 III','CDC art. 51 IV','CC art. 884']},
+      {t:'Falha na prestação do serviço — vício de qualidade',f:'green',
+       d:'O defeito ou inadequação do serviço prestado gera dever de reparação. O fornecedor responde independentemente de culpa pelos danos causados aos consumidores por defeitos na prestação dos serviços (CDC art. 14).',
+       n:['CDC art. 14','CDC art. 20','CC art. 186']},
+    ],
+    c:[
+      {t:'Danos morais por constrangimento ou inscrição indevida',f:'gold',
+       d:'A inscrição indevida em cadastros de inadimplentes ou o constrangimento por cobranças abusivas geram dano moral in re ipsa, presumido independentemente de prova do efetivo abalo.',
+       n:['CC art. 186','CC art. 927','CDC art. 42']},
+      {t:'Inversão do ônus da prova',f:'gold',
+       d:'Nos termos do art. 6º VIII do CDC, é direito básico do consumidor a facilitação da defesa, inclusive com a inversão do ônus da prova, quando a alegação for verossímil ou o consumidor hipossuficiente.',
+       n:['CDC art. 6º VIII','CPC art. 373 § 1º']},
+    ]
   }
+};
 
-  if (data.error) {
-    throw new Error(`Erro DataJud: ${JSON.stringify(data.error).substring(0, 300)}`);
+const FORCA = {green:'tag-green',gold:'tag-gold',orange:'tag-orange'};
+const FLBL  = {green:'Força alta',gold:'Força média',orange:'Atenção'};
+
+function rTeses(key) {
+  const db = TESES[key] || TESES['generica'];
+  function mkT(t,i,pfx) {
+    const id = `tese-${pfx}-${i}`;
+    const tc = FORCA[t.f]||'tag-gray', tl = FLBL[t.f]||t.f;
+    return `<div class="tese-card" id="${id}">
+      <div class="tese-head" onclick="togTese('${id}')">
+        <div class="tese-head-left">
+          <span class="tese-num">${i+1}.</span>
+          <span class="tese-titulo">${t.t}</span>
+        </div>
+        <span class="tag ${tc}" style="margin-left:.75rem;flex-shrink:0">${tl}</span>
+        <span class="tese-chevron">▼</span>
+      </div>
+      <div class="tese-body">
+        <div class="tese-desc">${t.d}</div>
+        <div class="tese-normas">${(t.n||[]).map(n=>`<span class="tese-norma">${n}</span>`).join('')}</div>
+      </div>
+    </div>`;
   }
-
-  return processResponse(data, tribunal, todosCodigosTpu);
+  document.getElementById('teses-principais').innerHTML = db.p.map((t,i)=>mkT(t,i,'p')).join('');
+  const complW = document.getElementById('teses-compl-wrap');
+  if ((db.c||[]).length) {
+    document.getElementById('teses-complementares').innerHTML = db.c.map((t,i)=>mkT(t,i+db.p.length,'c')).join('');
+    complW.classList.remove('hidden');
+  } else { complW.classList.add('hidden'); }
 }
 
+function togTese(id) { document.getElementById(id).classList.toggle('open'); }
 
-// ================================================================
-// PROCESSAR RESPOSTA DO DATAJUD
-// ================================================================
-function processResponse(data, tribunal, todosCodigosTpu) {
-  const total = (data.hits && data.hits.total) ? data.hits.total.value : 0;
-  const aggs  = data.aggregations || {};
-
-  // ── Por Ano ──────────────────────────────────────────────────
-  const porAno = ((aggs.por_ano && aggs.por_ano.buckets) || [])
-    .filter(b => b.doc_count > 0)
-    .map(b => ({ ano: b.key_as_string, count: b.doc_count }));
-
-  // ── Por Grau ─────────────────────────────────────────────────
-  const porGrau = ((aggs.por_grau && aggs.por_grau.buckets) || [])
-    .map(b => ({ grau: b.key, count: b.doc_count }));
-
-  // ── Outcomes (movimentos.codigo terms direto) ─────────────────
-  const movBuckets = (aggs.movimentos_codigos && aggs.movimentos_codigos.buckets) || [];
-
-  const outcomes = { procedente:0, improcedente:0, procedente_parcial:0, extincao:0, acordo:0 };
-  movBuckets.forEach(b => {
-    const code = Number(b.key);
-    const cnt  = b.doc_count;
-    if      (CONFIG.MOVIMENTOS.PROCEDENTE.includes(code))          outcomes.procedente         += cnt;
-    else if (CONFIG.MOVIMENTOS.IMPROCEDENTE.includes(code))        outcomes.improcedente       += cnt;
-    else if (CONFIG.MOVIMENTOS.PROCEDENTE_PARCIAL.includes(code))  outcomes.procedente_parcial += cnt;
-    else if (CONFIG.MOVIMENTOS.EXTINCAO_SEM_MERITO.includes(code)) outcomes.extincao           += cnt;
-    else if (CONFIG.MOVIMENTOS.ACORDO.includes(code))              outcomes.acordo             += cnt;
+/* ================================================================
+   EXPORT CSV
+   ================================================================ */
+function exportCSV() {
+  if (!curData) return;
+  const {porAno,empresa,tribunal,anoInicio,anoFim} = curData;
+  const tot = porAno.reduce((s,d)=>s+d.count,0);
+  const out = curData.outcomes||{};
+  const p=out.procedente||0,pp=out.procedente_parcial||0,im=out.improcedente||0;
+  const isFrac=(p+pp+im)<=1.05;
+  const cv=isFrac?tot:1;
+  const rows = porAno.map(row=>{
+    const fr=tot>0?row.count/tot:0;
+    return [row.ano,row.count,Math.round(p*cv*fr),Math.round(im*cv*fr),Math.round(pp*cv*fr)].join(',');
   });
-
-  // ── Processos individuais (amostra) ──────────────────────────
-  const processos = ((data.hits && data.hits.hits) || []).map(hit => {
-    const s    = hit._source || {};
-    const movs = Array.isArray(s.movimentos) ? s.movimentos : [];
-    const codsDecisao = [
-      ...CONFIG.MOVIMENTOS.PROCEDENTE,
-      ...CONFIG.MOVIMENTOS.IMPROCEDENTE,
-      ...CONFIG.MOVIMENTOS.PROCEDENTE_PARCIAL,
-      ...CONFIG.MOVIMENTOS.ACORDO,
-    ];
-    const decisoes = movs.filter(m => codsDecisao.includes(Number(m.codigo)));
-    const ultimo   = decisoes.length > 0 ? Number(decisoes[decisoes.length - 1].codigo) : null;
-    return {
-      numero:          s.numero,
-      tribunal:        s.tribunal || tribunal,
-      grau:            s.grau,
-      classe:          s.classeProcessual ? s.classeProcessual.nome : '—',
-      dataAjuizamento: s.dataAjuizamento,
-      ultimoMovimento: ultimo,
-    };
-  });
-
-  return { total, porAno, porGrau, outcomes, processos };
+  const csv = `Empresa,${empresa}\nTribunal,${tribunal}\nPeríodo,${anoInicio}-${anoFim}\n\nAno,Total,Procedente(est.),Improcedente(est.),ProcParcial(est.)\n${rows.join('\n')}`;
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`laadv_jusdata_${empresa.replace(/\s+/g,'_')}_${tribunal}_${anoInicio}-${anoFim}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+  dlog('INFO','CSV: '+a.download);
 }
 
+/* ================================================================
+   UI
+   ================================================================ */
+function qs(e,t) { document.getElementById('empresa-input').value=e; document.getElementById('f-tribunal').value=t; buscar(); }
+function limpar() { document.getElementById('empresa-input').value=''; document.getElementById('results-section').classList.add('hidden'); [cT,cO,cC].forEach(c=>{if(c)c.destroy();}); cT=cO=cC=null; curData=null; document.getElementById('btn-export').disabled=true; }
+function abrirConfig() { document.getElementById('cfg-gas-url').value=CFG.gasUrl||''; document.getElementById('cfg-api-key').value=CFG.apiKey||''; document.getElementById('cfg-sheet-id').value=CFG.sheetId||''; openModal('config-modal'); }
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function showLoad(l,s)  { document.getElementById('loading-overlay').classList.add('active'); setLoad(l,s); }
+function setLoad(l,s)   { document.getElementById('loading-label').textContent=l; document.getElementById('loading-sub').textContent=s; }
+function hideLoad()     { document.getElementById('loading-overlay').classList.remove('active'); }
 
-// ================================================================
-// BUSCA EM TODOS OS TRIBUNAIS
-// ================================================================
-function searchAllTribunais(empresa, anoI, anoF, polo, grau, apiKey) {
-  const tribunais   = Object.keys(CONFIG.TRIBUNAIS);
-  let totalGeral    = 0;
-  const outcomesGeral = { procedente:0, improcedente:0, procedente_parcial:0, extincao:0, acordo:0 };
-  const porAnoMerge   = {};
-  const porTribunal   = [];
-
-  for (const tribunal of tribunais) {
-    try {
-      const r = queryDataJud(tribunal, empresa, anoI, anoF, polo, grau, apiKey);
-      if (r.total > 0) {
-        totalGeral += r.total;
-        Object.keys(outcomesGeral).forEach(k => outcomesGeral[k] += (r.outcomes[k] || 0));
-        r.porAno.forEach(d => { porAnoMerge[d.ano] = (porAnoMerge[d.ano] || 0) + d.count; });
-        porTribunal.push({ tribunal, total: r.total });
-      }
-    } catch(e) {
-      console.error(`Tribunal ${tribunal} falhou: ${e.message}`);
-    }
-    Utilities.sleep(350);
-  }
-
-  const porAno = Object.entries(porAnoMerge)
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([ano, count]) => ({ ano, count }));
-
-  return { total: totalGeral, porAno, porGrau:[], outcomes: outcomesGeral, processos:[], porTribunal };
+function animN(id,target) {
+  const el=document.getElementById(id); const dur=600; const t0=performance.now();
+  const fn=t=>{const pr=Math.min((t-t0)/dur,1),e=1-Math.pow(1-pr,3);el.textContent=Math.round(target*e).toLocaleString('pt-BR');if(pr<1)requestAnimationFrame(fn);};
+  requestAnimationFrame(fn);
 }
 
-
-// ================================================================
-// HANDLER: STATS
-// ================================================================
-function handleStats(sheetId) {
-  const sid = sheetId || CONFIG.DEFAULT_SHEET_ID;
-  if (!sid) throw new Error('sheetId não configurado');
-  const ss = SpreadsheetApp.openById(sid);
-  const sh = ss.getSheetByName(CONFIG.SHEETS.HISTORICO);
-  if (!sh || sh.getLastRow() < 2) return { historico: [] };
-  const data = sh.getRange(2, 1, sh.getLastRow() - 1, 7).getValues();
-  return {
-    historico: data.map(r => ({
-      ts: r[0], empresa: r[1], tribunal: r[2], total: r[3],
-      procedente: r[4], improcedente: r[5], pct: r[6],
-    }))
-  };
+/* ── DEV ── */
+function toggleDevPanel() { document.getElementById('dev-panel').classList.toggle('active'); }
+function dlog(lv,msg) {
+  const b=document.getElementById('dev-log'); const l=document.createElement('div'); l.className='log-line';
+  l.innerHTML=`<span class="log-ts">${new Date().toLocaleTimeString('pt-BR')}</span><span class="log-lv ${lv}">${lv}</span><span class="log-msg">${msg}</span>`;
+  b.appendChild(l); b.scrollTop=b.scrollHeight;
+}
+function swTab(tab,btn) {
+  document.querySelectorAll('.dev-tab').forEach(b=>b.classList.remove('active')); if(btn)btn.classList.add('active');
+  ['dev-log','dev-changelog','dev-config','dev-response'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  const m={log:'dev-log',changelog:'dev-changelog',config:'dev-config',response:'dev-response'};
+  document.getElementById(m[tab]).classList.remove('hidden');
+  if(tab==='changelog') document.getElementById('dev-changelog').textContent=CHANGELOG;
+  if(tab==='config') document.getElementById('dev-config').textContent=JSON.stringify({ver:VER,cfg:{...CFG,apiKey:CFG.apiKey?'***':''},errs:ERR_LOG},null,2);
+  if(tab==='response') document.getElementById('dev-response').textContent=lastResp?JSON.stringify(lastResp,null,2):'(nenhuma resposta ainda)';
 }
 
-
-// ================================================================
-// CACHE — Sheets
-// ================================================================
-function buildCacheKey(empresa, tribunal, anoI, anoF, polo, grau) {
-  return `${empresa}|${tribunal}|${anoI}|${anoF}|${polo}|${grau}`;
+/* ── YEARS ── */
+function initYears() {
+  const cur=new Date().getFullYear(); const si=document.getElementById('f-ano-i'); const sf=document.getElementById('f-ano-f');
+  for(let y=cur;y>=2015;y--){si.appendChild(new Option(y,y,y===2019,y===2019));sf.appendChild(new Option(y,y,y===cur,y===cur));}
 }
 
-function getCachedResult(sheetId, key) {
-  const sid = sheetId || CONFIG.DEFAULT_SHEET_ID;
-  if (!sid) return null;
-  try {
-    const ss = SpreadsheetApp.openById(sid);
-    const sh = ss.getSheetByName(CONFIG.SHEETS.CACHE);
-    if (!sh || sh.getLastRow() < 2) return null;
-    const rows = sh.getRange(2, 1, sh.getLastRow() - 1, 3).getValues();
-    const now  = Date.now();
-    for (const row of rows) {
-      if (row[0] === key) {
-        const expired = (now - new Date(row[1]).getTime()) > CONFIG.CACHE_TTL_MS;
-        if (!expired) return JSON.parse(row[2]);
-      }
-    }
-    return null;
-  } catch(e) { console.error('getCachedResult:', e.message); return null; }
-}
+/* ── KEYBOARD ── */
+document.addEventListener('keydown',e=>{
+  if(e.ctrlKey&&e.shiftKey&&e.key==='D'){e.preventDefault();toggleDevPanel();}
+  if(e.key==='Escape'){closeModal('config-modal');if(document.getElementById('dev-panel').classList.contains('active'))toggleDevPanel();}
+});
 
-function saveToCache(sheetId, key, data) {
-  const sid = sheetId || CONFIG.DEFAULT_SHEET_ID;
-  if (!sid) return;
-  try {
-    const ss = SpreadsheetApp.openById(sid);
-    let sh   = ss.getSheetByName(CONFIG.SHEETS.CACHE);
-    if (!sh) {
-      sh = ss.insertSheet(CONFIG.SHEETS.CACHE);
-      sh.appendRow(['CacheKey','Timestamp','DataJSON']);
-      sh.getRange(1,1,1,3).setFontWeight('bold').setBackground('#0B4A44').setFontColor('#FFFFFF');
-    }
-    const ts = new Date().toISOString();
-    if (sh.getLastRow() > 1) {
-      const keys = sh.getRange(2,1,sh.getLastRow()-1,1).getValues().flat();
-      const idx  = keys.indexOf(key);
-      if (idx >= 0) { sh.getRange(idx+2,2,1,2).setValues([[ts,JSON.stringify(data)]]); return; }
-    }
-    sh.appendRow([key, ts, JSON.stringify(data)]);
-  } catch(e) { console.error('saveToCache:', e.message); }
-}
+/* ── INIT ── */
+(function(){
+  document.getElementById('app-ver').textContent=VER;
+  initYears(); loadCfg();
+  dlog('INIT',`LAADV JusData Analytics v${VER} — ${new Date().toLocaleString('pt-BR')}`);
+  dlog('INFO','Ctrl+Shift+D = Dev Console · Chips disponíveis na hero');
 
 
-// ================================================================
-// HISTÓRICO — Sheets
-// ================================================================
-function saveToHistorico(sheetId, result) {
-  const sid = sheetId || CONFIG.DEFAULT_SHEET_ID;
-  if (!sid) return;
-  try {
-    const ss = SpreadsheetApp.openById(sid);
-    let sh   = ss.getSheetByName(CONFIG.SHEETS.HISTORICO);
-    if (!sh) {
-      sh = ss.insertSheet(CONFIG.SHEETS.HISTORICO);
-      sh.appendRow(['Timestamp','Empresa','Tribunal','Total','Procedente','Improcedente','% Favorável']);
-      sh.getRange(1,1,1,7).setFontWeight('bold').setBackground('#0B4A44').setFontColor('#FFFFFF');
-    }
-    const p   = result.outcomes.procedente         || 0;
-    const pp  = result.outcomes.procedente_parcial || 0;
-    const im  = result.outcomes.improcedente       || 0;
-    const ex  = result.outcomes.extincao           || 0;
-    const ac  = result.outcomes.acordo             || 0;
-    const dec = p + pp + im + ex + ac;
-    const pct = dec > 0 ? (((p+pp)/dec)*100).toFixed(1)+'%' : 'N/D';
-    sh.appendRow([result.timestamp, result.empresa, result.tribunal, result.total, p, im, pct]);
-  } catch(e) { console.error('saveToHistorico:', e.message); }
-}
-
-
-// ================================================================
-// LOG — Sheets (rotação automática: max 1000 linhas)
-// ================================================================
-function gasLog(sheetId, level, msg) {
-  console.log(`[${level}] ${msg}`);
-  const sid = sheetId || CONFIG.DEFAULT_SHEET_ID;
-  if (!sid) return;
-  try {
-    const ss = SpreadsheetApp.openById(sid);
-    let sh   = ss.getSheetByName(CONFIG.SHEETS.LOG);
-    if (!sh) {
-      sh = ss.insertSheet(CONFIG.SHEETS.LOG);
-      sh.appendRow(['Timestamp','Level','Mensagem']);
-      sh.getRange(1,1,1,3).setFontWeight('bold').setBackground('#162030').setFontColor('#FFFFFF');
-    }
-    sh.appendRow([new Date().toISOString(), level, msg]);
-    const last = sh.getLastRow();
-    if (last > 1001) sh.deleteRows(2, last - 1001);
-  } catch(e) { console.error('gasLog:', e.message); }
-}
-
-
-// ================================================================
-// TESTES INTERNOS — executar manualmente no editor GAS
-// ================================================================
-
-// Testar ping (verificar se o deploy está OK)
-function testePing() {
-  const result = doGet({ parameter: { action: 'ping' } });
-  Logger.log(result.getContent());
-}
-
-// Testar busca real — Light / TJRJ
-function testeLight() {
-  const result = doGet({
-    parameter: {
-      action:    'search',
-      empresa:   'LIGHT',
-      tribunal:  'TJRJ',
-      anoInicio: '2020',
-      anoFim:    '2024',
-      polo:      'PA',
-    }
-  });
-  Logger.log(result.getContent());
-}
-
-// Testar busca real — Oi / TJRJ
-function testeOi() {
-  const result = doGet({
-    parameter: {
-      action:    'search',
-      empresa:   'OI',
-      tribunal:  'TJRJ',
-      anoInicio: '2020',
-      anoFim:    '2024',
-      polo:      'PA',
-    }
-  });
-  Logger.log(result.getContent());
-}
+})();
+</script>
+</body>
+</html>
