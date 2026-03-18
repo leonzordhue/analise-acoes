@@ -298,7 +298,7 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
     <div class="modal-body">
       <div class="alert alert-info" style="margin-bottom:1.2rem">
         <span>ℹ</span>
-        <div>O frontend consulta o CNJ DataJud via <strong>Google Apps Script</strong> como proxy. Sem configuração, dados simulados são exibidos para demonstração.</div>
+        <div>O frontend consulta o CNJ DataJud via <strong>Google Apps Script</strong> como proxy. O backend já está configurado e pronto para uso. Altere os campos abaixo apenas se precisar trocar o deploy.</div>
       </div>
       <ol class="step-list" style="margin-bottom:1.5rem">
         <li>Acesse <a href="https://script.google.com" target="_blank" style="color:var(--teal)">script.google.com</a> → Novo projeto → cole o conteúdo de <code style="background:var(--gray-light);padding:1px 5px;border-radius:3px;font-size:.73rem;color:var(--blue)">Code.gs</code></li>
@@ -680,10 +680,10 @@ let curData   = null;
    CONFIG
    ================================================================ */
 const CFG_KEY = 'laadv_jd_cfg_v1';
-let CFG = { gasUrl:'', apiKey:'', sheetId:'', cacheTTL:3600000 };
+let CFG = { gasUrl:'https://script.google.com/macros/s/AKfycbzifAehNzlgStKxWRW6vQOn9mWV0otCKjT7gu7QSzcZkrw9AZ4r8Nz1C3FpLJlS_pEf5Q/exec', apiKey:'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==', sheetId:'1v2UI_OSF6r_WEfTc51SDAdY8uTZqIcARxNHGhIZROys', cacheTTL:3600000 };
 
 function loadCfg() {
-  try { const s = localStorage.getItem(CFG_KEY); if(s) CFG = {...CFG,...JSON.parse(s)}; } catch(e){}
+  try { const s = localStorage.getItem(CFG_KEY); if(s) { const saved=JSON.parse(s); if(saved.gasUrl) CFG.gasUrl=saved.gasUrl; if(saved.apiKey) CFG.apiKey=saved.apiKey; if(saved.sheetId) CFG.sheetId=saved.sheetId; if(saved.cacheTTL) CFG.cacheTTL=saved.cacheTTL; } } catch(e){}
   updStatus();
   dlog('INIT',`Config: GAS=${CFG.gasUrl?'✓':'⚠ não configurada'}`);
 }
@@ -1172,7 +1172,8 @@ document.addEventListener('keydown',e=>{
   initYears(); loadCfg();
   dlog('INIT',`LAADV JusData Analytics v${VER} — ${new Date().toLocaleString('pt-BR')}`);
   dlog('INFO','Ctrl+Shift+D = Dev Console · Chips disponíveis na hero');
-  if(!CFG.gasUrl)dlog('WARN','Sem backend → modo demonstração simulado');
+
+
 })();
 </script>
 </body>
