@@ -1,70 +1,57 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <!--
-╔═══════════════════════════════════════════════════════════════════════════════════╗
-║  LAADV — JusData Analytics v1.0                                                   ║
-║  Análise de Ações Judiciais contra Empresas | Luís Albert Advocacia               ║
-║  GitHub Pages Ready | Single-file HTML | CNJ DataJud                              ║
-╠═══════════════════════════════════════════════════════════════════════════════════╣
-║  CHANGELOG INTERNO — NÃO REMOVER ESTE BLOCO                                       ║
-╠═══════════════════════════════════════════════════════════════════════════════════╣
-║  [v1.0.0] 2026-03-18 — Criação                                                    ║
-║  + Design system idêntico ao LAADV (teal/gold, Cormorant+DM Sans)                ║
-║  + Busca por empresa/razão social com filtros tribunal/ano/polo                    ║
-║  + KPIs: Ações/Ano Média, Taxa Procedência, Condenação Média, Comarcas            ║
-║  + Gráfico bar duplo: evolução anual (total vs produto específico)                ║
-║  + Gráfico donut: distribuição de resultados com percentuais                      ║
-║  + Gráfico horizontal: condenação média por comarca                               ║
-║  + Tabela top comarcas (ações, procedência %, val. médio, perfil)                 ║
-║  + Seção teses jurídicas em acordeão (força alta/média/atenção)                   ║
-║  + Tabela detalhe anual de resultados                                              ║
-║  + Config modal GAS (URL + API Key + Sheet ID)                                    ║
-║  + Dados simulados com aviso explícito (sem backend)                              ║
-║  + Cache localStorage TTL 1h                                                      ║
-║  + Exportação CSV UTF-8 BOM                                                       ║
-║  + Dev panel (Ctrl+Shift+D): log, changelog, config, last response                ║
-║                                                                                    ║
-║  BUGS NÃO REGREDIR:                                                                ║
-║  - Chart.js: SEMPRE if(chart) chart.destroy() antes de recriar                   ║
-║  - GAS CORS: ContentService JSON — não usar setHeader manualmente                 ║
-║  - Cache key: incluir todos os filtros para evitar colisões de resultado           ║
-║  - DataJud "partes": campo nested — nested query obrigatória, não raiz            ║
-║  - TJDFT: índice = api_publica_tjdft (não api_publica_tjdf)                       ║
-║  - porAno outcomes v1.0: estimados proporcionalmente — NÃO exibir como exatos     ║
-║  - outcomes: verificar se são frações (simulado) ou contagens (real API)          ║
-║                                                                                    ║
-║  ROADMAP:                                                                          ║
-║  v1.1.0 — Query per-ano para outcomes exatos (não estimados)                      ║
-║  v1.2.0 — Busca por CNPJ com pré-validação Receita Federal                       ║
-║  v1.3.0 — Multi-tribunal paralelo (UrlFetchApp.fetchAll)                          ║
-║  v1.4.0 — Trigger diário de atualização incremental                               ║
-║  v2.0.0 — Dashboard comparativo entre empresas do mesmo setor                     ║
-╚═══════════════════════════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════╗
+║  LAADV — JusData Analytics v2.0                              ║
+║  Luís Albert Advocacia | GitHub Pages Ready                  ║
+╠══════════════════════════════════════════════════════════════╣
+║  [v2.0.0] 2026-03-19                                         ║
+║  + Seção 1: Relatório por empresa/setor (DataJud automático) ║
+║  + Seção 2: DataJud livre (nº processo + filtros combinados) ║
+║  + Resultados salvos automaticamente no Sheets               ║
+║  + Design LAADV completo                                     ║
+║  + Dev panel Ctrl+Shift+D                                    ║
+╚══════════════════════════════════════════════════════════════╝
 -->
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="theme-color" content="#0B4A44"/>
-  <title>LAADV — JusData Analytics</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#0B4A44"/>
+<title>LAADV — JusData Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-:root{--teal:#0B4A44;--teal-mid:#145E58;--teal-light:#1C7A72;--teal-hover:#0d5a54;--teal-bg:#EBF5F4;--teal-brd:#A8D4D0;--gold:#C9A93E;--gold-light:#E8CB6E;--gold-dark:#9E8130;--gold-bg:#FBF5E0;--gold-brd:#E8CB6E;--white:#FFFFFF;--gray-bg:#F5F7F9;--gray-light:#EEF1F5;--gray-brd:#DDE3EC;--gray-mid:#8899AA;--text:#162030;--text-mid:#3D4F63;--success:#1A6B48;--success-bg:#E8F5EE;--success-brd:#A3D4BC;--error:#B02020;--error-bg:#FEF2F2;--blue:#1A4B8C;--blue-bg:#EBF0F8;--blue-brd:#A8BED4;--red:#8C1A1A;--red-bg:#F8EBEB;--red-brd:#D4A8A8;--orange:#B45309;--orange-bg:#FEF3C7;--orange-brd:#FCD34D;--font-serif:'Cormorant Garamond',Georgia,serif;--font:'DM Sans',system-ui,sans-serif;--radius:12px;--shadow:0 2px 18px rgba(11,74,68,.10),0 0 0 1px var(--gray-brd);--shadow-lg:0 8px 40px rgba(11,74,68,.18);}
+:root{
+  --teal:#0B4A44;--teal-mid:#145E58;--teal-light:#1C7A72;--teal-hover:#0d5a54;
+  --teal-bg:#EBF5F4;--teal-brd:#A8D4D0;
+  --gold:#C9A93E;--gold-light:#E8CB6E;--gold-dark:#9E8130;--gold-bg:#FBF5E0;--gold-brd:#E8CB6E;
+  --white:#FFFFFF;--gray-bg:#F5F7F9;--gray-light:#EEF1F5;--gray-brd:#DDE3EC;--gray-mid:#8899AA;
+  --text:#162030;--text-mid:#3D4F63;
+  --success:#1A6B48;--success-bg:#E8F5EE;--success-brd:#A3D4BC;
+  --error:#B02020;--error-bg:#FEF2F2;
+  --blue:#1A4B8C;--blue-bg:#EBF0F8;--blue-brd:#A8BED4;
+  --red:#8C1A1A;--red-bg:#F8EBEB;--red-brd:#D4A8A8;
+  --orange:#B45309;--orange-bg:#FEF3C7;--orange-brd:#FCD34D;
+  --font-serif:'Cormorant Garamond',Georgia,serif;
+  --font:'DM Sans',system-ui,sans-serif;
+  --radius:12px;
+  --shadow:0 2px 18px rgba(11,74,68,.10),0 0 0 1px var(--gray-brd);
+  --shadow-lg:0 8px 40px rgba(11,74,68,.18);
+}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{scroll-behavior:smooth;font-size:16px;}
+html{scroll-behavior:smooth;}
 body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit-font-smoothing:antialiased;min-height:100vh;}
-::selection{background:rgba(11,74,68,.15);}
 
 /* TOPBAR */
 .topbar{background:var(--teal);padding:.38rem 1.5rem;display:flex;align-items:center;justify-content:space-between;}
 .topbar-l{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.45);font-weight:500;}
 .topbar-r{font-size:.62rem;font-weight:600;color:var(--gold-light);display:flex;align-items:center;gap:.5rem;letter-spacing:.06em;text-transform:uppercase;}
 .topbar-dot{width:6px;height:6px;border-radius:50%;background:var(--gold-light);animation:pulse 2.2s ease-in-out infinite;}
-.topbar-devbtn{font-size:.6rem;cursor:pointer;opacity:.35;color:var(--gold-light);background:none;border:none;padding:0 .5rem;letter-spacing:.04em;transition:opacity .2s;}
-.topbar-devbtn:hover{opacity:1;}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.devbtn{font-size:.6rem;cursor:pointer;opacity:.35;color:var(--gold-light);background:none;border:none;padding:0 .5rem;}
+.devbtn:hover{opacity:1;}
 
 /* HEADER */
 .site-header{background:var(--teal);border-bottom:3px solid var(--gold);padding:.85rem 1.5rem 1rem;position:sticky;top:0;z-index:200;box-shadow:0 4px 24px rgba(11,74,68,.3);}
@@ -72,14 +59,14 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 .brand{display:flex;align-items:center;gap:1rem;}
 .brand-logo{width:44px;height:44px;border-radius:8px;background:var(--gold);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .brand-logo svg{width:30px;height:30px;}
-.brand-name{font-family:var(--font-serif);font-size:1.3rem;font-weight:700;color:var(--white);letter-spacing:.04em;line-height:1.1;}
+.brand-name{font-family:var(--font-serif);font-size:1.3rem;font-weight:700;color:#fff;letter-spacing:.04em;line-height:1.1;}
 .brand-sub{font-size:.63rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-light);margin-top:.1rem;}
-.header-right{display:flex;align-items:center;gap:.75rem;}
-.header-badge{font-size:.65rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;background:rgba(201,169,62,.18);border:1px solid rgba(201,169,62,.4);color:var(--gold-light);padding:.4em 1.1em;border-radius:100px;}
-.hdr-status{display:flex;align-items:center;gap:.4rem;font-size:.65rem;font-weight:600;color:rgba(255,255,255,.5);letter-spacing:.05em;}
-.hdr-dot{width:7px;height:7px;border-radius:50%;background:var(--gray-mid);transition:background .3s;}
+.hdr-right{display:flex;align-items:center;gap:.75rem;}
+.hdr-status{display:flex;align-items:center;gap:.4rem;font-size:.65rem;color:rgba(255,255,255,.5);}
+.hdr-dot{width:7px;height:7px;border-radius:50%;background:var(--gray-mid);}
 .hdr-dot.ok{background:var(--gold-light);box-shadow:0 0 6px var(--gold-light);}
-.hdr-dot.err{background:#ef4444;box-shadow:0 0 6px #ef4444;}
+.hdr-dot.err{background:#ef4444;}
+.header-badge{font-size:.65rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;background:rgba(201,169,62,.18);border:1px solid rgba(201,169,62,.4);color:var(--gold-light);padding:.4em 1.1em;border-radius:100px;}
 
 /* HERO */
 .hero{background:linear-gradient(135deg,var(--teal) 0%,var(--teal-mid) 60%,var(--teal-light) 100%);padding:2.2rem 1.5rem 3rem;position:relative;overflow:hidden;}
@@ -87,16 +74,22 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 .hero::after{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(to bottom,var(--gold),rgba(201,169,62,.1));}
 .hero-inner{position:relative;z-index:1;max-width:1200px;margin:0 auto;}
 .hero-eye{font-size:.63rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-light);margin-bottom:.5rem;}
-.hero-title{font-family:var(--font-serif);font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;color:var(--white);letter-spacing:-.01em;line-height:1.1;margin-bottom:.4rem;}
+.hero-title{font-family:var(--font-serif);font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;color:#fff;line-height:1.1;margin-bottom:.4rem;}
 .hero-sub{font-size:.84rem;color:rgba(255,255,255,.55);max-width:680px;line-height:1.6;}
-.hero-chips{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem;}
-.hero-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:.63rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:rgba(255,255,255,.8);padding:.28em .9em;border-radius:100px;cursor:pointer;transition:all .15s;}
-.hero-chip:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);}
 .hero-wave{overflow:hidden;line-height:0;}
 .hero-wave svg{display:block;width:100%;fill:var(--gray-bg);}
 
+/* TABS */
+.tabs-nav{max-width:1200px;margin:0 auto;padding:1.5rem 1.5rem 0;display:flex;gap:.5rem;}
+.tab-btn{font-family:var(--font);font-size:.82rem;font-weight:700;border:none;border-radius:10px 10px 0 0;padding:.75em 1.5em;cursor:pointer;background:var(--white);color:var(--gray-mid);border:1.5px solid var(--gray-brd);border-bottom:none;transition:all .15s;}
+.tab-btn.active{background:var(--white);color:var(--teal);border-color:var(--teal-brd);position:relative;}
+.tab-btn.active::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:2px;background:var(--white);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+
 /* MAIN */
-.main-wrap{max-width:1200px;margin:0 auto;padding:2rem 1.5rem 5rem;}
+.main-wrap{max-width:1200px;margin:0 auto;padding:0 1.5rem 5rem;background:var(--white);border:1.5px solid var(--teal-brd);border-radius:0 var(--radius) var(--radius) var(--radius);box-shadow:var(--shadow);}
+.section-pad{padding:1.75rem 0;}
 
 /* CARD */
 .card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.25rem;overflow:hidden;}
@@ -109,15 +102,18 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 /* FORM */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
 @media(max-width:640px){.form-grid{grid-template-columns:1fr;}}
+.form-grid.cols3{grid-template-columns:1fr 1fr 1fr;}
+@media(max-width:760px){.form-grid.cols3{grid-template-columns:1fr 1fr;}}
 .form-grid.cols4{grid-template-columns:repeat(4,1fr);}
 @media(max-width:900px){.form-grid.cols4{grid-template-columns:1fr 1fr;}}
 .field{display:flex;flex-direction:column;gap:.35rem;}
 .field.full{grid-column:1/-1;}
 .field-label{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-mid);}
-.field input,.field select{font-family:var(--font);font-size:.9rem;font-weight:500;color:var(--text);background:var(--white);border:1.5px solid var(--gray-brd);border-radius:8px;padding:.7rem 1rem;outline:none;width:100%;transition:border-color .2s,box-shadow .2s;appearance:none;-webkit-appearance:none;}
+.field input,.field select{font-family:var(--font);font-size:.9rem;font-weight:500;color:var(--text);background:var(--white);border:1.5px solid var(--gray-brd);border-radius:8px;padding:.7rem 1rem;outline:none;width:100%;transition:border-color .2s,box-shadow .2s;appearance:none;}
 .field input:focus,.field select:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(11,74,68,.1);}
 .field input::placeholder{color:var(--gray-mid);}
 .field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238899AA' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 1rem center;padding-right:2.5rem;}
+.field-hint{font-size:.68rem;color:var(--gray-mid);margin-top:.15rem;}
 
 /* BUTTONS */
 .btn{font-family:var(--font);font-size:.85rem;font-weight:700;border:none;border-radius:9px;padding:.75em 1.5em;cursor:pointer;display:inline-flex;align-items:center;gap:.5rem;transition:all .16s;white-space:nowrap;}
@@ -132,15 +128,30 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 .btn-lg{font-size:.95rem;padding:.9em 2em;}
 .btn-sm{font-size:.75rem;padding:.5em 1em;}
 .btn:disabled{opacity:.45;pointer-events:none;}
-.btn-actions{display:flex;gap:.6rem;flex-wrap:wrap;}
+.btn-row{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1.25rem;}
 
-/* KPI */
+/* SECTION TITLE */
+.sec-title{font-family:var(--font-serif);font-size:1.2rem;font-weight:700;color:var(--teal);margin-bottom:.2rem;}
+.sec-sub{font-size:.78rem;color:var(--gray-mid);margin-bottom:1.25rem;}
+.sec-sep{height:1px;background:var(--gray-brd);margin:1.5rem 0;}
+.setor-label{font-size:.63rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);padding-bottom:.4rem;border-bottom:2px solid var(--teal-bg);margin-bottom:.75rem;margin-top:1.25rem;display:flex;align-items:center;gap:.4rem;}
+
+/* EMPRESA CARDS */
+.empresa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:.75rem;}
+.emp-card{background:var(--white);border:1.5px solid var(--gray-brd);border-radius:var(--radius);padding:1rem;cursor:pointer;transition:all .18s;position:relative;overflow:hidden;}
+.emp-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--gray-brd);}
+.emp-card:hover{box-shadow:0 4px 18px rgba(11,74,68,.12);transform:translateY(-2px);border-color:var(--teal-brd);}
+.emp-card:hover::before,.emp-card.sel::before{background:var(--teal);}
+.emp-card.sel{border-color:var(--teal);background:var(--teal-bg);box-shadow:0 0 0 3px rgba(11,74,68,.1);}
+.emp-icon{font-size:1.5rem;margin-bottom:.5rem;}
+.emp-nome{font-size:.88rem;font-weight:700;color:var(--text);margin-bottom:.15rem;}
+.emp-razao{font-size:.65rem;color:var(--gray-mid);line-height:1.4;}
+
+/* KPIs */
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.9rem;margin-bottom:1.25rem;}
 @media(max-width:900px){.kpi-grid{grid-template-columns:1fr 1fr;}}
-@media(max-width:500px){.kpi-grid{grid-template-columns:1fr;}}
-.kpi-card{background:var(--white);border:1.5px solid var(--gray-brd);border-radius:10px;padding:1rem 1.2rem;position:relative;overflow:hidden;transition:box-shadow .2s;}
-.kpi-card:hover{box-shadow:0 4px 20px rgba(11,74,68,.12);}
-.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--kpi-c,var(--teal-brd));}
+.kpi-card{background:var(--white);border:1.5px solid var(--gray-brd);border-radius:10px;padding:1rem 1.2rem;position:relative;overflow:hidden;}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--kc,var(--teal-brd));}
 .kpi-card.hl{background:var(--teal);border-color:var(--teal);}
 .kpi-card.gd{background:linear-gradient(135deg,var(--gold),var(--gold-dark));border-color:var(--gold-dark);}
 .kpi-label{font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gray-mid);margin-bottom:.3rem;}
@@ -161,7 +172,6 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 .chart-title{font-size:.82rem;font-weight:700;color:var(--text);}
 .chart-sub{font-size:.65rem;color:var(--gray-mid);margin-top:.15rem;}
 .chart-body{padding:1rem 1rem 1.2rem;}
-.chart-body canvas{max-height:260px;}
 .chart-legend{display:flex;gap:1rem;flex-wrap:wrap;padding:.6rem 1rem 1rem;border-top:1px solid var(--gray-light);}
 .legend-item{display:flex;align-items:center;gap:.35rem;font-size:.68rem;color:var(--text-mid);}
 .legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
@@ -177,7 +187,8 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 .result-table tbody tr:hover{background:var(--teal-bg);}
 .result-table tbody td{padding:.65rem 1rem;color:var(--text-mid);white-space:nowrap;border-right:1px solid var(--gray-brd);}
 .result-table tbody td:last-child{border-right:none;}
-.td-strong{font-weight:700;color:var(--text);}
+.td-s{font-weight:700;color:var(--text);}
+.table-note{padding:.5rem 1rem;font-size:.65rem;color:var(--gray-mid);border-top:1px solid var(--gray-brd);}
 
 /* TAGS */
 .tag{display:inline-flex;align-items:center;gap:.25rem;font-size:.63rem;font-weight:700;padding:.2em .7em;border-radius:100px;letter-spacing:.04em;}
@@ -195,135 +206,134 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 
 /* TESES */
 .teses-section-title{font-size:.63rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);padding-bottom:.5rem;border-bottom:2px solid var(--teal-bg);display:flex;align-items:center;gap:.4rem;margin-bottom:.9rem;}
-.tese-card{background:var(--white);border:1.5px solid var(--gray-brd);border-radius:10px;margin-bottom:.65rem;overflow:hidden;transition:box-shadow .15s;}
-.tese-card:hover{box-shadow:0 2px 12px rgba(11,74,68,.1);}
+.tese-card{background:var(--white);border:1.5px solid var(--gray-brd);border-radius:10px;margin-bottom:.65rem;overflow:hidden;}
 .tese-head{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.1rem;cursor:pointer;user-select:none;}
 .tese-head-left{display:flex;align-items:center;gap:.75rem;flex:1;min-width:0;}
-.tese-num{font-family:var(--font-serif);font-size:1.1rem;font-weight:700;color:var(--teal);flex-shrink:0;min-width:1.6rem;}
+.tese-num{font-family:var(--font-serif);font-size:1.1rem;font-weight:700;color:var(--teal);flex-shrink:0;}
 .tese-titulo{font-size:.85rem;font-weight:700;color:var(--text);line-height:1.3;}
-.tese-chevron{font-size:.7rem;color:var(--gray-mid);transition:transform .2s;flex-shrink:0;margin-left:.5rem;}
+.tese-chevron{font-size:.7rem;color:var(--gray-mid);transition:transform .2s;margin-left:.5rem;flex-shrink:0;}
 .tese-card.open .tese-chevron{transform:rotate(180deg);}
 .tese-body{display:none;padding:0 1.1rem 1.1rem;border-top:1px solid var(--gray-light);}
 .tese-card.open .tese-body{display:block;animation:fadeIn .2s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .tese-desc{font-size:.82rem;color:var(--text-mid);line-height:1.65;margin:.8rem 0 .75rem;}
-.tese-normas{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.65rem;}
+.tese-normas{display:flex;gap:.4rem;flex-wrap:wrap;}
 .tese-norma{font-size:.62rem;font-weight:600;background:var(--teal-bg);border:1px solid var(--teal-brd);color:var(--teal);padding:.15em .6em;border-radius:4px;}
 
-/* ALERTS */
-.alert{border-radius:9px;padding:.85rem 1.1rem;display:flex;align-items:flex-start;gap:.6rem;font-size:.8rem;line-height:1.5;margin-bottom:1rem;}
-.alert-info{background:var(--teal-bg);border:1.5px solid var(--teal-brd);color:var(--teal);}
-.alert-warn{background:var(--gold-bg);border:1.5px solid var(--gold-brd);color:#6B4F00;}
-.alert strong{font-weight:700;}
+/* RESULTADO PROCESSO */
+.proc-card{background:var(--white);border:1.5px solid var(--gray-brd);border-radius:var(--radius);padding:1.25rem;margin-bottom:.75rem;}
+.proc-numero{font-family:var(--font-serif);font-size:1.1rem;font-weight:700;color:var(--teal);margin-bottom:.5rem;}
+.proc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.75rem;margin-top:.75rem;}
+.proc-field{display:flex;flex-direction:column;gap:.2rem;}
+.proc-field-label{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-mid);}
+.proc-field-val{font-size:.82rem;font-weight:600;color:var(--text);}
+.proc-movimentos{margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--gray-brd);}
 
 /* LOADING */
 .loading-overlay{display:none;position:fixed;inset:0;background:rgba(11,20,40,.65);backdrop-filter:blur(5px);z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:1.2rem;}
 .loading-overlay.active{display:flex;}
 .spinner{width:44px;height:44px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--gold);border-radius:50%;animation:spin .75s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loading-label{font-family:var(--font-serif);font-size:1.1rem;color:#fff;letter-spacing:.02em;}
-.loading-sub{font-size:.72rem;color:rgba(255,255,255,.5);letter-spacing:.08em;text-transform:uppercase;}
+.loading-label{font-family:var(--font-serif);font-size:1.1rem;color:#fff;}
+.loading-sub{font-size:.72rem;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em;}
 
-/* MODAL */
+/* MODAL CONFIG */
 .modal-overlay{position:fixed;inset:0;background:rgba(11,20,40,.65);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;z-index:1000;padding:2rem 1rem;overflow-y:auto;}
 .modal-overlay.open{display:flex;}
-.modal{background:var(--white);border-radius:16px;width:100%;max-width:600px;box-shadow:var(--shadow-lg);animation:modalIn .22s ease;overflow:hidden;}
-@keyframes modalIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.modal{background:var(--white);border-radius:16px;width:100%;max-width:580px;box-shadow:var(--shadow-lg);animation:mIn .22s ease;overflow:hidden;}
+@keyframes mIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 .modal-head{background:var(--teal);padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;}
-.modal-head-title{font-size:.95rem;font-weight:700;color:#fff;display:flex;align-items:center;gap:.5rem;}
-.modal-close{width:30px;height:30px;border-radius:6px;background:rgba(255,255,255,.12);border:none;color:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.modal-head-title{font-size:.95rem;font-weight:700;color:#fff;}
+.modal-close{width:28px;height:28px;border-radius:6px;background:rgba(255,255,255,.12);border:none;color:#fff;cursor:pointer;font-size:1rem;}
 .modal-body{padding:1.5rem;}
 .modal-foot{padding:1rem 1.5rem;border-top:1px solid var(--gray-brd);display:flex;justify-content:flex-end;gap:.5rem;}
-.step-list{list-style:none;counter-reset:s;}
-.step-list li{counter-increment:s;padding:9px 0 9px 34px;position:relative;border-bottom:1px solid var(--gray-brd);font-size:.8rem;color:var(--text-mid);line-height:1.6;}
-.step-list li:last-child{border-bottom:none;}
-.step-list li::before{content:counter(s);position:absolute;left:0;top:9px;width:20px;height:20px;background:var(--teal);color:#fff;border-radius:50%;font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;}
 
-/* RESULT HEADER */
-.result-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;padding-bottom:1.1rem;border-bottom:2px solid var(--teal-bg);}
-.result-nome{font-family:var(--font-serif);font-size:1.6rem;font-weight:700;color:var(--teal);line-height:1.1;}
-.result-meta{font-size:.72rem;color:var(--gray-mid);margin-top:.3rem;display:flex;flex-wrap:wrap;gap:.5rem;}
-.result-meta-item{display:flex;align-items:center;gap:.25rem;}
-.result-actions{display:flex;gap:.5rem;align-items:center;flex-shrink:0;}
+/* ALERT */
+.alert{border-radius:9px;padding:.85rem 1.1rem;display:flex;align-items:flex-start;gap:.6rem;font-size:.8rem;line-height:1.5;margin-bottom:1rem;}
+.alert-info{background:var(--teal-bg);border:1.5px solid var(--teal-brd);color:var(--teal);}
+.alert-warn{background:var(--gold-bg);border:1.5px solid var(--gold-brd);color:#6B4F00;}
+.alert-error{background:var(--error-bg);border:1.5px solid rgba(176,32,32,.25);color:#7a1010;}
+.alert strong{font-weight:700;}
 
-/* DEV PANEL */
-#dev-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:250px;background:rgba(6,9,14,.97);border-top:2px solid var(--gold);z-index:9000;font-family:monospace;font-size:11px;}
-#dev-panel.active{display:flex;flex-direction:column;}
-.dev-head{display:flex;justify-content:space-between;align-items:center;padding:5px 12px;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(201,169,62,.05);}
-.dev-head-title{color:var(--gold-light);font-size:10px;letter-spacing:2px;text-transform:uppercase;}
-.dev-tabs{display:flex;gap:2px;}
-.dev-tab{padding:3px 10px;border-radius:4px 4px 0 0;cursor:pointer;color:rgba(255,255,255,.4);font-size:10px;background:transparent;border:none;transition:.15s;}
-.dev-tab.active{color:var(--gold-light);background:rgba(201,169,62,.1);}
-.dev-body{flex:1;overflow-y:auto;padding:8px 12px;line-height:1.8;}
-.log-line{display:flex;gap:10px;}
-.log-ts{color:rgba(255,255,255,.25);flex-shrink:0;width:72px;}
-.log-lv{flex-shrink:0;width:46px;}
-.log-lv.INFO{color:#60a5fa;}.log-lv.WARN{color:#fbbf24;}.log-lv.ERROR{color:#f87171;}.log-lv.OK{color:#4ade80;}.log-lv.INIT{color:var(--gold-light);}
-.log-msg{color:rgba(255,255,255,.6);word-break:break-word;}
+/* PAGINAÇÃO */
+.pagination{display:flex;align-items:center;gap:.5rem;margin-top:1rem;justify-content:center;}
+.page-btn{font-family:var(--font);font-size:.78rem;font-weight:600;border:1.5px solid var(--gray-brd);background:var(--white);color:var(--text-mid);border-radius:7px;padding:.4em .9em;cursor:pointer;transition:all .15s;}
+.page-btn:hover{border-color:var(--teal-brd);color:var(--teal);background:var(--teal-bg);}
+.page-btn.active{background:var(--teal);border-color:var(--teal);color:#fff;}
+.page-btn:disabled{opacity:.4;pointer-events:none;}
+.page-info{font-size:.75rem;color:var(--gray-mid);}
 
 /* FOOTER */
 .site-footer{background:var(--teal);border-top:3px solid var(--gold);padding:1.2rem 1.5rem;}
 .footer-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;}
 .footer-brand{display:flex;align-items:center;gap:.75rem;}
-.footer-logo-box{width:30px;height:30px;border-radius:6px;background:var(--gold);display:flex;align-items:center;justify-content:center;}
-.footer-logo-box svg{width:18px;height:18px;}
-.footer-name{font-family:var(--font-serif);font-size:.9rem;font-weight:700;color:#fff;}
+.footer-logo{width:30px;height:30px;border-radius:6px;background:var(--gold);display:flex;align-items:center;justify-content:center;}
+.footer-nome{font-family:var(--font-serif);font-size:.9rem;font-weight:700;color:#fff;}
 .footer-copy{font-size:.62rem;color:rgba(255,255,255,.4);line-height:1.6;text-align:right;}
-.footer-copy a{color:rgba(255,255,255,.55);text-decoration:none;}
+
+/* DEV */
+#dev-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:230px;background:rgba(6,9,14,.97);border-top:2px solid var(--gold);z-index:9000;font-family:monospace;font-size:11px;flex-direction:column;}
+#dev-panel.active{display:flex;}
+.dev-head{display:flex;justify-content:space-between;align-items:center;padding:5px 12px;border-bottom:1px solid rgba(255,255,255,.07);}
+.dev-title{color:var(--gold-light);font-size:10px;letter-spacing:2px;text-transform:uppercase;}
+.dev-tabs{display:flex;gap:2px;}
+.dev-tab{padding:3px 10px;border-radius:4px 4px 0 0;cursor:pointer;color:rgba(255,255,255,.4);font-size:10px;background:transparent;border:none;}
+.dev-tab.active{color:var(--gold-light);background:rgba(201,169,62,.1);}
+.dev-body{flex:1;overflow-y:auto;padding:8px 12px;line-height:1.8;}
+.log-line{display:flex;gap:10px;}
+.log-ts{color:rgba(255,255,255,.25);width:72px;flex-shrink:0;}
+.log-lv{width:46px;flex-shrink:0;}
+.log-lv.INFO{color:#60a5fa;}.log-lv.OK{color:#4ade80;}.log-lv.WARN{color:#fbbf24;}.log-lv.ERROR{color:#f87171;}
+.log-msg{color:rgba(255,255,255,.6);word-break:break-word;}
 
 .hidden{display:none!important;}
-.mt-1{margin-top:.75rem;}
-.mb-1{margin-bottom:.75rem;}
-
-@media print{@page{size:A4;margin:10mm 8mm;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}body{background:#fff!important;}.topbar,.site-header,.hero,.hero-wave,.site-footer,#dev-panel,.btn-actions,#search-section,.loading-overlay,.modal-overlay{display:none!important;}.main-wrap{padding:0!important;max-width:100%!important;}#results-section{display:block!important;}.card{box-shadow:none!important;border:1px solid #ccc!important;page-break-inside:avoid;}.chart-card{page-break-inside:avoid;}}
-@media(max-width:768px){.main-wrap{padding:1.25rem 1rem 4rem;}.card-body{padding:1.1rem;}.result-header{flex-direction:column;}}
+@media(max-width:768px){.main-wrap{padding:0 1rem 4rem;}.kpi-grid{grid-template-columns:1fr 1fr;}.charts-row{grid-template-columns:1fr;}}
+@media print{
+  @page{size:A4;margin:10mm 8mm;}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  body{background:#fff!important;}
+  .topbar,.site-header,.hero,.hero-wave,.site-footer,#dev-panel,.tabs-nav,.modal-overlay,.loading-overlay,.btn-row,.rel-actions,.pagination{display:none!important;}
+  .main-wrap{box-shadow:none!important;border:none!important;padding:0!important;}
+  .tab-content{display:block!important;}
+  .card,.chart-card,.kpi-card{box-shadow:none!important;border:1px solid #ccc!important;page-break-inside:avoid;}
+}
 </style>
 </head>
 <body>
 
 <!-- LOADING -->
-<div class="loading-overlay" id="loading-overlay">
+<div class="loading-overlay" id="loading">
   <div class="spinner"></div>
-  <div class="loading-label" id="loading-label">Consultando DataJud…</div>
-  <div class="loading-sub" id="loading-sub">CNJ — Conselho Nacional de Justiça</div>
+  <div class="loading-label" id="load-label">Consultando DataJud…</div>
+  <div class="loading-sub" id="load-sub">CNJ — Conselho Nacional de Justiça</div>
 </div>
 
 <!-- CONFIG MODAL -->
-<div class="modal-overlay" id="config-modal">
+<div class="modal-overlay" id="cfg-modal">
   <div class="modal">
     <div class="modal-head">
-      <div class="modal-head-title">⚙ Configuração do Backend</div>
-      <button class="modal-close" onclick="closeModal('config-modal')">✕</button>
+      <div class="modal-head-title">⚙ Configuração</div>
+      <button class="modal-close" onclick="closeModal('cfg-modal')">✕</button>
     </div>
     <div class="modal-body">
-      <div class="alert alert-info" style="margin-bottom:1.2rem">
-        <span>ℹ</span>
-        <div>O frontend consulta o CNJ DataJud via <strong>Google Apps Script</strong> como proxy. O backend já está configurado e pronto para uso. Altere os campos abaixo apenas se precisar trocar o deploy.</div>
-      </div>
-      <ol class="step-list" style="margin-bottom:1.5rem">
-        <li>Acesse <a href="https://script.google.com" target="_blank" style="color:var(--teal)">script.google.com</a> → Novo projeto → cole o conteúdo de <code style="background:var(--gray-light);padding:1px 5px;border-radius:3px;font-size:.73rem;color:var(--blue)">Code.gs</code></li>
-        <li>Implantar → App da Web → Executar como: <em>Eu</em> → Acesso: <em>Qualquer pessoa</em></li>
-        <li>Copie a URL de implantação e cole abaixo</li>
-        <li>Obtenha sua chave API DataJud em <a href="https://datajud-wiki.cnj.jus.br/api-publica/acesso" target="_blank" style="color:var(--teal)">datajud-wiki.cnj.jus.br</a></li>
-      </ol>
       <div class="form-grid" style="gap:.9rem">
         <div class="field full">
-          <label class="field-label">URL do Apps Script (Web App)</label>
-          <input type="url" id="cfg-gas-url" placeholder="https://script.google.com/macros/s/AKfyc.../exec">
+          <label class="field-label">URL do Apps Script</label>
+          <input type="url" id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec">
         </div>
         <div class="field">
           <label class="field-label">Chave API DataJud</label>
-          <input type="text" id="cfg-api-key" placeholder="APIKey xxxxxxx">
+          <input type="text" id="cfg-key" placeholder="APIKey xxxxxxx">
         </div>
         <div class="field">
-          <label class="field-label">ID da Planilha (Sheets)</label>
-          <input type="text" id="cfg-sheet-id" placeholder="1BxiMVs0XRA5nF…">
+          <label class="field-label">ID da Planilha</label>
+          <input type="text" id="cfg-sid" placeholder="1BxiMVs0...">
         </div>
       </div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('config-modal')">Cancelar</button>
-      <button class="btn btn-primary" onclick="salvarConfig()">Salvar &amp; Testar Conexão</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('cfg-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarCfg()">Salvar & Testar</button>
     </div>
   </div>
 </div>
@@ -332,9 +342,8 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 <div class="topbar">
   <span class="topbar-l">Luís Albert Advocacia — Plataforma Administrativa</span>
   <span class="topbar-r">
-    <span class="topbar-dot"></span>
-    <span id="topbar-status">JusData Analytics</span>
-    <button class="topbar-devbtn" onclick="toggleDevPanel()" title="Dev (Ctrl+Shift+D)">DEV</button>
+    <span class="topbar-dot"></span>JusData Analytics v2.0
+    <button class="devbtn" onclick="toggleDev()">DEV</button>
   </span>
 </div>
 
@@ -343,24 +352,17 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
   <div class="header-inner">
     <div class="brand">
       <div class="brand-logo">
-        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8 38L20 10L27 27" stroke="#0B4A44" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M20 10L32 38" stroke="#0B4A44" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M17 28H27" stroke="#0B4A44" stroke-width="3.5" stroke-linecap="round"/>
-        </svg>
+        <svg viewBox="0 0 48 48" fill="none"><path d="M8 38L20 10L27 27" stroke="#0B4A44" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 10L32 38" stroke="#0B4A44" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 28H27" stroke="#0B4A44" stroke-width="3.5" stroke-linecap="round"/></svg>
       </div>
       <div>
         <div class="brand-name">Luís Albert Advocacia</div>
-        <div class="brand-sub">JusData Analytics · Ações Judiciais</div>
+        <div class="brand-sub">JusData Analytics · CNJ DataJud</div>
       </div>
     </div>
-    <div class="header-right">
-      <div class="hdr-status">
-        <div class="hdr-dot" id="hdr-dot"></div>
-        <span id="hdr-status-txt">sem config.</span>
-      </div>
-      <span class="header-badge">CNJ DataJud</span>
-      <button class="btn btn-gold btn-sm" onclick="abrirConfig()">⚙ Configurar</button>
+    <div class="hdr-right">
+      <div class="hdr-status"><div class="hdr-dot" id="hdr-dot"></div><span id="hdr-txt">sem config.</span></div>
+      <span class="header-badge">TJRJ · DataJud</span>
+      <button class="btn btn-gold btn-sm" onclick="abrirCfg()">⚙ Configurar</button>
     </div>
   </div>
 </header>
@@ -368,579 +370,658 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 <!-- HERO -->
 <div class="hero">
   <div class="hero-inner">
-    <div class="hero-eye">// Inteligência Jurídica Competitiva</div>
-    <div class="hero-title">Análise de ações contra<br>empresas no TJRJ</div>
-    <div class="hero-sub">Volume, taxa de procedência, condenação por comarca e teses jurídicas — diretamente do CNJ DataJud.</div>
-    <div class="hero-chips">
-      <span class="hero-chip" onclick="qs('Light','TJRJ','energia')">⚡ Light / TJRJ</span>
-      <span class="hero-chip" onclick="qs('Oi','TJRJ','telecom')">📡 Oi / TJRJ</span>
-      <span class="hero-chip" onclick="qs('Enel RJ','TJRJ','energia')">🔌 Enel RJ</span>
-      <span class="hero-chip" onclick="qs('TIM','TJRJ','telecom')">📱 TIM / TJRJ</span>
-      <span class="hero-chip" onclick="qs('Claro','TJRJ','telecom')">🌐 Claro / TJRJ</span>
-      <span class="hero-chip" onclick="qs('CEDAE','TJRJ','agua')">💧 CEDAE / TJRJ</span>
-    </div>
+    <div class="hero-eye">// Inteligência Jurídica · CNJ DataJud</div>
+    <div class="hero-title">Análise de ações judiciais<br>por empresa e processo</div>
+    <div class="hero-sub">Relatórios por setor/empresa via DataJud + busca por número de processo e filtros combinados. Resultados salvos automaticamente no Google Sheets.</div>
   </div>
-  <div class="hero-wave">
-    <svg viewBox="0 0 1440 40" preserveAspectRatio="none"><path d="M0,30 C360,0 1080,40 1440,20 L1440,40 L0,40 Z"/></svg>
-  </div>
+  <div class="hero-wave"><svg viewBox="0 0 1440 40" preserveAspectRatio="none"><path d="M0,30 C360,0 1080,40 1440,20 L1440,40 L0,40 Z"/></svg></div>
+</div>
+
+<!-- TABS NAV -->
+<div class="tabs-nav">
+  <button class="tab-btn active" onclick="switchTab('t1',this)">📊 Relatório por Empresa</button>
+  <button class="tab-btn" onclick="switchTab('t2',this)">🔍 Busca no DataJud</button>
 </div>
 
 <!-- MAIN -->
 <div class="main-wrap">
 
-  <!-- SEARCH -->
-  <section id="search-section">
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">Pesquisa de Ações</div>
-          <div class="card-sub">Selecione a categoria processual e o tribunal</div>
+  <!-- ══════════════════════════════════════════════
+       TAB 1 — RELATÓRIO POR EMPRESA
+  ══════════════════════════════════════════════ -->
+  <div class="tab-content active" id="t1">
+  <div class="section-pad">
+
+    <div class="sec-title">Selecione a empresa</div>
+    <div class="sec-sub">Os dados são buscados automaticamente no DataJud pelo setor processual correspondente.</div>
+
+    <div class="setor-label"><span>⚡</span> ENERGIA ELÉTRICA</div>
+    <div class="empresa-grid">
+      <div class="emp-card" onclick="selEmpresa(this,'energia','Light','Light Serviços de Eletricidade S.A.')">
+        <div class="emp-icon">⚡</div>
+        <div class="emp-nome">Light</div>
+        <div class="emp-razao">Light Serviços de Eletricidade S.A.</div>
+      </div>
+      <div class="emp-card" onclick="selEmpresa(this,'energia','Enel RJ','Enel Distribuição Rio')">
+        <div class="emp-icon">🔌</div>
+        <div class="emp-nome">Enel RJ</div>
+        <div class="emp-razao">Enel Distribuição Rio S.A.</div>
+      </div>
+      <div class="emp-card" onclick="selEmpresa(this,'energia','CEMIG','CEMIG Distribuição')">
+        <div class="emp-icon">💡</div>
+        <div class="emp-nome">CEMIG</div>
+        <div class="emp-razao">CEMIG Distribuição S.A.</div>
+      </div>
+    </div>
+
+    <div class="setor-label"><span>📡</span> TELECOMUNICAÇÕES</div>
+    <div class="empresa-grid">
+      <div class="emp-card" onclick="selEmpresa(this,'telecom','Oi','Oi S.A.')">
+        <div class="emp-icon">📡</div>
+        <div class="emp-nome">Oi</div>
+        <div class="emp-razao">Oi S.A. — Em Recuperação Judicial</div>
+      </div>
+      <div class="emp-card" onclick="selEmpresa(this,'telecom','TIM','TIM S.A.')">
+        <div class="emp-icon">📱</div>
+        <div class="emp-nome">TIM</div>
+        <div class="emp-razao">TIM S.A.</div>
+      </div>
+      <div class="emp-card" onclick="selEmpresa(this,'telecom','Claro','Claro S.A.')">
+        <div class="emp-icon">🌐</div>
+        <div class="emp-nome">Claro</div>
+        <div class="emp-razao">Claro S.A.</div>
+      </div>
+      <div class="emp-card" onclick="selEmpresa(this,'telecom','Vivo','Telefônica Brasil')">
+        <div class="emp-icon">📶</div>
+        <div class="emp-nome">Vivo</div>
+        <div class="emp-razao">Telefônica Brasil S.A.</div>
+      </div>
+    </div>
+
+    <div class="setor-label"><span>💧</span> SANEAMENTO</div>
+    <div class="empresa-grid">
+      <div class="emp-card" onclick="selEmpresa(this,'agua','CEDAE','CEDAE')">
+        <div class="emp-icon">💧</div>
+        <div class="emp-nome">CEDAE</div>
+        <div class="emp-razao">Cia. Estadual de Águas e Esgotos</div>
+      </div>
+      <div class="emp-card" onclick="selEmpresa(this,'agua','Sabesp','Sabesp')">
+        <div class="emp-icon">🚿</div>
+        <div class="emp-nome">Sabesp</div>
+        <div class="emp-razao">Cia. de Saneamento Básico do Estado de SP</div>
+      </div>
+    </div>
+
+    <div class="setor-label"><span>🏦</span> SERVIÇOS BANCÁRIOS</div>
+    <div class="empresa-grid">
+      <div class="emp-card" onclick="selEmpresa(this,'banco','Bradesco','Banco Bradesco')">
+        <div class="emp-icon">🏦</div>
+        <div class="emp-nome">Bradesco</div>
+        <div class="emp-razao">Banco Bradesco S.A.</div>
+      </div>
+      <div class="emp-card" onclick="selEmpresa(this,'banco','Itaú','Banco Itaú')">
+        <div class="emp-icon">💳</div>
+        <div class="emp-nome">Itaú</div>
+        <div class="emp-razao">Itaú Unibanco S.A.</div>
+      </div>
+      <div class="emp-card" onclick="selEmpresa(this,'banco','Nubank','Nubank')">
+        <div class="emp-icon">💜</div>
+        <div class="emp-nome">Nubank</div>
+        <div class="emp-razao">Nu Pagamentos S.A.</div>
+      </div>
+    </div>
+
+    <div class="btn-row" style="align-items:center">
+      <button class="btn btn-primary btn-lg" id="btn-gerar" onclick="gerarRelatorio1()" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Gerar Relatório
+      </button>
+      <div class="form-grid" style="gap:.75rem;margin:0;flex:1;max-width:400px">
+        <div class="field">
+          <label class="field-label">Ano início</label>
+          <select id="t1-ano-i"></select>
+        </div>
+        <div class="field">
+          <label class="field-label">Ano fim</label>
+          <select id="t1-ano-f"></select>
         </div>
       </div>
-      <div class="card-body">
-        <div class="form-grid" style="margin-bottom:1rem">
-          <div class="field">
-            <label class="field-label">Categoria Processual</label>
-            <select id="f-categoria">
-              <option value="energia">⚡ Energia Elétrica (Light, Enel, CEMIG…)</option>
-              <option value="telecom">📡 Telecomunicações (Oi, TIM, Claro, Vivo…)</option>
-              <option value="banco">🏦 Serviços Bancários (Bradesco, Itaú, Nubank…)</option>
-              <option value="agua">💧 Saneamento / Água (CEDAE, Sabesp…)</option>
-              <option value="geral">🔍 Geral (Consumidor)</option>
-            </select>
+      <span style="font-size:.75rem;color:var(--gray-mid)" id="sel-hint">Selecione uma empresa</span>
+    </div>
+
+    <!-- RELATÓRIO RESULTADO -->
+    <div id="r1-section" class="hidden" style="margin-top:2rem">
+
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;padding-bottom:1.1rem;border-bottom:3px solid var(--teal-bg)">
+        <div>
+          <div style="font-family:var(--font-serif);font-size:2rem;font-weight:700;color:var(--teal);line-height:1.1" id="r1-nome">—</div>
+          <div style="font-size:.72rem;color:var(--gray-mid);margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.6rem" id="r1-meta"></div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-shrink:0">
+          <span class="tag tag-teal hidden" id="r1-cache-tag">⚡ cache</span>
+          <button class="btn btn-gold btn-sm" onclick="exportCSV1()">CSV</button>
+          <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨</button>
+        </div>
+      </div>
+
+      <div class="alert alert-info" id="r1-info" style="display:none">
+        <span>ℹ</span><div id="r1-info-txt"></div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <div class="kpi-card" style="--kc:var(--teal)">
+          <div class="kpi-label">Ações / Ano (Média)</div>
+          <div class="kpi-val" id="k1-media">—</div>
+          <div class="kpi-sub" id="k1-media-sub">período selecionado</div>
+        </div>
+        <div class="kpi-card hl">
+          <div class="kpi-label">Taxa de Procedência</div>
+          <div class="kpi-val" id="k1-proc">—</div>
+          <div class="kpi-sub">ganho parcial ou total</div>
+        </div>
+        <div class="kpi-card gd">
+          <div class="kpi-label">Total de Ações</div>
+          <div class="kpi-val" id="k1-total">—</div>
+          <div class="kpi-sub" id="k1-total-sub">no período</div>
+        </div>
+        <div class="kpi-card" style="--kc:var(--blue-brd)">
+          <div class="kpi-label">Com Decisão Final</div>
+          <div class="kpi-val" id="k1-dec">—</div>
+          <div class="kpi-sub">processos julgados</div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <div class="chart-title" id="ch1-title">Volume de ações por ano</div>
+              <div class="chart-sub" id="ch1-sub">TJRJ · ajuizamentos</div>
+            </div>
+            <span class="tag tag-blue">Série Temporal</span>
           </div>
-          <div class="field">
-            <label class="field-label">Label da Empresa (opcional)</label>
-            <input type="text" id="empresa-input" placeholder="Ex: Light, Oi, CEDAE — apenas para exibição" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')buscar()">
+          <div class="chart-body"><canvas id="ch1-trend" style="max-height:240px"></canvas></div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#0B4A44"></div>Ações por ano</div>
           </div>
         </div>
-        <div class="form-grid cols4" style="margin-bottom:1.1rem">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <div class="chart-title">Distribuição de resultados</div>
+              <div class="chart-sub">processos com decisão</div>
+            </div>
+          </div>
+          <div class="chart-body" style="display:flex;align-items:center;justify-content:center;min-height:230px">
+            <canvas id="ch1-out" style="max-height:220px;max-width:220px"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart grau -->
+      <div class="chart-card" style="margin-bottom:1.25rem">
+        <div class="chart-head">
+          <div>
+            <div class="chart-title">Ações por grau de jurisdição</div>
+            <div class="chart-sub">JE = Juizado Especial · G1 = 1º Grau · G2 = 2º Grau</div>
+          </div>
+          <span class="tag tag-teal">Distribuição</span>
+        </div>
+        <div class="chart-body" style="min-height:160px">
+          <canvas id="ch1-grau" style="max-height:150px"></canvas>
+        </div>
+      </div>
+
+      <!-- Tabela processos -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Processos Recentes</div>
+            <div class="card-sub">últimos retornados pelo DataJud</div>
+          </div>
+          <span class="tag tag-gold" id="r1-tag-setor">—</span>
+        </div>
+        <div class="card-body-tight">
+          <div class="result-table-wrap">
+            <table class="result-table">
+              <thead><tr><th>NÚMERO</th><th>GRAU</th><th>CLASSE</th><th>COMARCA</th><th>DATA AJUIZ.</th><th>RESULTADO</th></tr></thead>
+              <tbody id="tb1-processos"></tbody>
+            </table>
+          </div>
+          <div class="table-note">* Dados diretos do DataJud / CNJ. Salvos automaticamente no Sheets.</div>
+        </div>
+      </div>
+
+      <!-- Teses -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Teses com Maior Taxa de Procedência</div>
+            <div class="card-sub" id="r1-teses-sub">—</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div style="margin-bottom:1.25rem">
+            <div class="teses-section-title"><span>⚖</span> TESES PRINCIPAIS</div>
+            <div id="r1-teses-p"></div>
+          </div>
+          <div>
+            <div class="teses-section-title"><span>➕</span> TESES COMPLEMENTARES</div>
+            <div id="r1-teses-c"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /r1-section -->
+  </div>
+  </div><!-- /t1 -->
+
+  <!-- ══════════════════════════════════════════════
+       TAB 2 — BUSCA NO DATAJUD
+  ══════════════════════════════════════════════ -->
+  <div class="tab-content" id="t2">
+  <div class="section-pad">
+
+    <!-- 2A: Por número -->
+    <div class="sec-title">Buscar processo por número</div>
+    <div class="sec-sub">Informe o número no formato CNJ (ex: 0800770-06.2026.8.19.0046) e o tribunal.</div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="form-grid cols3" style="margin-bottom:1rem">
+          <div class="field full" style="grid-column:span 2">
+            <label class="field-label">Número do Processo (CNJ)</label>
+            <input type="text" id="t2-numero" placeholder="0800770-06.2026.8.19.0046" onkeydown="if(event.key==='Enter')buscaProcesso()">
+            <div class="field-hint">Aceita com ou sem pontuação</div>
+          </div>
           <div class="field">
             <label class="field-label">Tribunal</label>
-            <select id="f-tribunal">
-              <option value="TJRJ">TJRJ — Rio de Janeiro</option>
-              <option value="TJSP">TJSP — São Paulo</option>
-              <option value="TJMG">TJMG — Minas Gerais</option>
-              <option value="TJRS">TJRS — Rio Grande do Sul</option>
-              <option value="TJBA">TJBA — Bahia</option>
-              <option value="TJPR">TJPR — Paraná</option>
-              <option value="TJAM">TJAM — Amazonas</option>
-              <option value="TODOS">Todos os tribunais</option>
+            <select id="t2-tribunal">
+              <option value="TJRJ">TJRJ</option><option value="TJSP">TJSP</option>
+              <option value="TJMG">TJMG</option><option value="TJRS">TJRS</option>
+              <option value="TJBA">TJBA</option><option value="TJPR">TJPR</option>
+              <option value="TJAM">TJAM</option><option value="TJES">TJES</option>
             </select>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:0">
+          <button class="btn btn-primary" onclick="buscaProcesso()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            Buscar Processo
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="limparProcesso()">Limpar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="r2-proc" class="hidden"></div>
+
+    <div class="sec-sep"></div>
+
+    <!-- 2B: Filtros -->
+    <div class="sec-title">Busca por filtros combinados</div>
+    <div class="sec-sub">Combine tribunal, período, assunto, grau e comarca. Todos os campos são opcionais — use o que fizer sentido para sua análise.</div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="form-grid cols4" style="margin-bottom:1rem">
+          <div class="field">
+            <label class="field-label">Tribunal</label>
+            <select id="t2-ftribunal">
+              <option value="TJRJ">TJRJ</option><option value="TJSP">TJSP</option>
+              <option value="TJMG">TJMG</option><option value="TJRS">TJRS</option>
+              <option value="TJBA">TJBA</option><option value="TJAM">TJAM</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Ano início</label>
+            <select id="t2-ano-i"></select>
+          </div>
+          <div class="field">
+            <label class="field-label">Ano fim</label>
+            <select id="t2-ano-f"></select>
           </div>
           <div class="field">
             <label class="field-label">Grau</label>
-            <select id="f-polo">
-              <option value="">Todos os graus</option>
+            <select id="t2-grau">
+              <option value="">Todos</option>
               <option value="JE">JE — Juizado Especial</option>
               <option value="G1">G1 — 1º Grau</option>
               <option value="G2">G2 — 2º Grau</option>
             </select>
           </div>
+        </div>
+        <div class="form-grid" style="margin-bottom:1rem">
           <div class="field">
-            <label class="field-label">Ano início</label>
-            <select id="f-ano-i"></select>
+            <label class="field-label">Código do Assunto (CNJ)</label>
+            <select id="t2-assunto">
+              <option value="">Todos os assuntos</option>
+              <option value="14925">14925 — Repetição do Indébito</option>
+              <option value="10793">10793 — Indenização por Dano Moral</option>
+              <option value="10443">10443 — Energia Elétrica</option>
+              <option value="10444">10444 — Suspensão / Interrupção do Fornecimento</option>
+              <option value="10445">10445 — Tarifa / Cobrança</option>
+              <option value="10448">10448 — Telecomunicações</option>
+              <option value="10449">10449 — Telefonia</option>
+              <option value="10450">10450 — Internet</option>
+              <option value="9636">9636 — Contratos de Consumo</option>
+              <option value="6003">6003 — Responsabilidade do Fornecedor</option>
+              <option value="10786">10786 — Dano Moral</option>
+              <option value="11872">11872 — Cartão de Crédito</option>
+              <option value="7771">7771 — Serviço Público</option>
+            </select>
           </div>
           <div class="field">
-            <label class="field-label">Ano fim</label>
-            <select id="f-ano-f"></select>
+            <label class="field-label">Código IBGE da Comarca</label>
+            <select id="t2-ibge">
+              <option value="">Todas as comarcas</option>
+              <option value="3304557">3304557 — Capital / Rio de Janeiro</option>
+              <option value="3303302">3303302 — Nova Iguaçu</option>
+              <option value="3301702">3301702 — Duque de Caxias</option>
+              <option value="3301009">3301009 — Campos dos Goytacazes</option>
+              <option value="3300456">3300456 — Belford Roxo</option>
+              <option value="3304300">3304300 — Niterói</option>
+              <option value="3303500">3303500 — Petrópolis</option>
+              <option value="3305109">3305109 — São João de Meriti</option>
+              <option value="3301900">3301900 — Macaé</option>
+              <option value="3304904">3304904 — São Gonçalo</option>
+            </select>
           </div>
         </div>
-        <div class="btn-actions">
-          <button class="btn btn-primary btn-lg" onclick="buscar()" id="btn-search">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            Pesquisar
+        <div class="form-grid" style="margin-bottom:1rem">
+          <div class="field">
+            <label class="field-label">Resultado / Movimento TPU</label>
+            <select id="t2-mov">
+              <option value="">Todos os resultados</option>
+              <option value="848">848 — Procedente</option>
+              <option value="849">849 — Improcedente</option>
+              <option value="850">850 — Procedente em Parte</option>
+              <option value="893">893 — Homologação de Acordo</option>
+              <option value="22">22 — Extinção do Processo</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Classe Processual</label>
+            <select id="t2-classe">
+              <option value="">Todas as classes</option>
+              <option value="436">436 — Proc. Juizado Especial Cível</option>
+              <option value="7">7 — Ação de Procedimento Comum</option>
+              <option value="40">40 — Embargos à Execução</option>
+              <option value="198">198 — Execução</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:0">
+          <button class="btn btn-primary" onclick="buscaFiltros(1)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            Buscar
           </button>
-          <button class="btn btn-ghost" onclick="limpar()">Limpar</button>
-          <button class="btn btn-outline" id="btn-export" onclick="exportCSV()" disabled>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Exportar CSV
-          </button>
+          <button class="btn btn-ghost btn-sm" onclick="limparFiltros()">Limpar filtros</button>
+          <button class="btn btn-outline btn-sm" id="btn-exportf" onclick="exportCSV2()" disabled>CSV</button>
         </div>
       </div>
     </div>
-  </section>
 
-  <!-- RESULTS -->
-  <section id="results-section" class="hidden">
+    <!-- Resultado filtros -->
+    <div id="r2-filtros" class="hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+        <div>
+          <span style="font-size:.82rem;font-weight:700;color:var(--text)" id="r2f-total">—</span>
+          <span style="font-size:.75rem;color:var(--gray-mid)" id="r2f-meta"></span>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <span class="tag" id="r2f-proc-tag" style="display:none"></span>
+          <span class="tag" id="r2f-imp-tag" style="display:none"></span>
+        </div>
+      </div>
 
-    <div class="result-header">
-      <div>
-        <div class="result-nome" id="r-nome">—</div>
-        <div class="result-meta" id="r-meta"></div>
-      </div>
-      <div class="result-actions">
-        <span class="tag tag-gray hidden" id="tag-cache">⚡ cache</span>
-        <span class="tag tag-gold hidden" id="tag-sim">★ simulado</span>
-        <button class="btn btn-outline btn-sm" onclick="buscar()">↻ Atualizar</button>
-        <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨 Imprimir</button>
-      </div>
-    </div>
-
-    <div class="alert alert-warn hidden" id="sim-alert">
-      <span>⚠</span>
-      <div><strong>Dados simulados para demonstração.</strong> Configure o backend (⚙ Configurar) para obter dados reais do CNJ DataJud. Valores baseados em padrões históricos do TJRJ.</div>
-    </div>
-
-    <!-- KPIs -->
-    <div class="kpi-grid">
-      <div class="kpi-card" style="--kpi-c:var(--teal)">
-        <div class="kpi-label">Ações / Ano (Média)</div>
-        <div class="kpi-val" id="kpi-media">—</div>
-        <div class="kpi-sub" id="kpi-media-sub">período selecionado</div>
-      </div>
-      <div class="kpi-card hl">
-        <div class="kpi-label">Taxa de Procedência</div>
-        <div class="kpi-val" id="kpi-proc">—</div>
-        <div class="kpi-sub">ganho parcial ou total do consumidor</div>
-      </div>
-      <div class="kpi-card gd">
-        <div class="kpi-label">Condenação Média</div>
-        <div class="kpi-val" id="kpi-cond">—</div>
-        <div class="kpi-sub">danos morais + restituição</div>
-      </div>
-      <div class="kpi-card" style="--kpi-c:var(--blue-brd)">
-        <div class="kpi-label">Comarcas Ativas</div>
-        <div class="kpi-val" id="kpi-comarca">—</div>
-        <div class="kpi-sub" id="kpi-comarca-sub">no estado selecionado</div>
-      </div>
-    </div>
-
-    <!-- Charts row 1 -->
-    <div class="charts-row">
-      <div class="chart-card">
-        <div class="chart-head">
-          <div>
-            <div class="chart-title" id="ch1-title">Volume de ações por ano</div>
-            <div class="chart-sub" id="ch1-sub">ajuizamentos por ano</div>
+      <div class="card">
+        <div class="card-body-tight">
+          <div class="result-table-wrap">
+            <table class="result-table">
+              <thead><tr><th>NÚMERO</th><th>GRAU</th><th>CLASSE</th><th>COMARCA</th><th>DATA AJUIZ.</th><th>ASSUNTO</th><th>RESULTADO</th></tr></thead>
+              <tbody id="tb2-processos"></tbody>
+            </table>
           </div>
-          <span class="tag tag-blue">Série Temporal</span>
-        </div>
-        <div class="chart-body"><canvas id="chart-trend"></canvas></div>
-        <div class="chart-legend">
-          <div class="legend-item"><div class="legend-dot" style="background:#0B4A44"></div>Total ações</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#C9A93E"></div><span id="legend-toi">Produto específico</span></div>
+          <div class="table-note">Salvos automaticamente na aba "Processos" do Google Sheets.</div>
         </div>
       </div>
-      <div class="chart-card">
-        <div class="chart-head">
-          <div>
-            <div class="chart-title" id="ch2-title">Resultado das ações</div>
-            <div class="chart-sub">com decisão final</div>
-          </div>
-        </div>
-        <div class="chart-body" style="display:flex;align-items:center;justify-content:center;min-height:240px">
-          <canvas id="chart-outcomes" style="max-height:230px;max-width:230px"></canvas>
-        </div>
-      </div>
+
+      <div class="pagination" id="r2-pag"></div>
     </div>
 
-    <!-- Chart comarca -->
-    <div class="chart-card mb-1" style="margin-bottom:1.25rem">
-      <div class="chart-head">
-        <div>
-          <div class="chart-title">Condenação média por comarca (R$)</div>
-          <div class="chart-sub">valor médio de danos morais + restituição</div>
-        </div>
-        <span class="tag tag-gold">Top comarcas</span>
-      </div>
-      <div class="chart-body" style="min-height:230px">
-        <canvas id="chart-comarca" style="max-height:240px"></canvas>
-      </div>
-    </div>
-
-    <!-- Table comarcas -->
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">Top Comarcas por Volume de Ações</div>
-          <div class="card-sub">ordenado por volume de ações ajuizadas</div>
-        </div>
-        <span class="tag tag-teal" id="tag-ano">2023</span>
-      </div>
-      <div class="card-body-tight">
-        <div class="result-table-wrap">
-          <table class="result-table">
-            <thead>
-              <tr>
-                <th>COMARCA</th><th>AÇÕES</th><th>PROCEDÊNCIA</th><th>VAL. MÉDIO COND.</th><th>PERFIL</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-comarcas"></tbody>
-          </table>
-        </div>
-        <div style="padding:.5rem 1rem;font-size:.65rem;color:var(--gray-mid);border-top:1px solid var(--gray-brd)">
-          * Dados sujeitos à cobertura do tribunal no CNJ DataJud. Procedência calculada sobre processos com decisão de mérito.
-        </div>
-      </div>
-    </div>
-
-    <!-- Teses jurídicas -->
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">Teses com Maior Taxa de Procedência</div>
-          <div class="card-sub" id="teses-sub">argumentos jurídicos para esta empresa/produto</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <div style="margin-bottom:1.25rem">
-          <div class="teses-section-title"><span>⚖</span> TESES PRINCIPAIS (FORÇA ALTA)</div>
-          <div id="teses-principais"></div>
-        </div>
-        <div id="teses-compl-wrap">
-          <div class="teses-section-title"><span>➕</span> TESES COMPLEMENTARES (CUMULATIVAS)</div>
-          <div id="teses-complementares"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Tabela anual -->
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">Detalhe Anual — Resultados</div>
-          <div class="card-sub">procedência estimada proporcional · decisões de mérito</div>
-        </div>
-      </div>
-      <div class="card-body-tight">
-        <div class="result-table-wrap">
-          <table class="result-table">
-            <thead>
-              <tr><th>ANO</th><th>TOTAL</th><th>PROCEDENTE</th><th>IMPROCEDENTE</th><th>PROC. PARCIAL</th><th>ACORDO</th><th>EM ANDAMENTO</th><th>% FAVORÁVEL</th></tr>
-            </thead>
-            <tbody id="tbody-anual"></tbody>
-          </table>
-        </div>
-        <div style="padding:.5rem 1rem;font-size:.65rem;color:var(--gray-mid);border-top:1px solid var(--gray-brd)">
-          ⚠ Procedência por ano estimada em v1.0 — query individualizada por ano no roadmap v1.1.
-        </div>
-      </div>
-    </div>
-
-    <div style="text-align:center;font-size:.65rem;color:var(--gray-mid);margin-top:.5rem;padding-top:1rem;border-top:1px solid var(--gray-brd)">
-      Fonte: <a href="https://datajud-wiki.cnj.jus.br/" target="_blank" style="color:var(--teal)">CNJ DataJud</a> · Dados públicos · <span id="footer-ts">—</span>
-    </div>
-
-  </section>
+  </div>
+  </div><!-- /t2 -->
 
 </div><!-- /main-wrap -->
 
-<!-- DEV PANEL -->
-<div id="dev-panel">
-  <div class="dev-head">
-    <span class="dev-head-title">⬛ LAADV JusData Dev — v<span id="app-ver">1.0.0</span></span>
-    <div class="dev-tabs">
-      <button class="dev-tab active" onclick="swTab('log',this)">LOG</button>
-      <button class="dev-tab" onclick="swTab('changelog',this)">CHANGELOG</button>
-      <button class="dev-tab" onclick="swTab('config',this)">CONFIG</button>
-      <button class="dev-tab" onclick="swTab('response',this)">RESPONSE</button>
-    </div>
-    <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" onclick="toggleDevPanel()">✕</button>
-  </div>
-  <div class="dev-body" id="dev-log"></div>
-  <div class="dev-body hidden" id="dev-changelog" style="white-space:pre;font-size:10px;color:rgba(255,255,255,.5)"></div>
-  <div class="dev-body hidden" id="dev-config" style="white-space:pre;font-size:10px;color:rgba(255,255,255,.5)"></div>
-  <div class="dev-body hidden" id="dev-response" style="white-space:pre-wrap;word-break:break-all;font-size:10px;color:rgba(255,255,255,.5)"></div>
-</div>
-
-<!-- FOOTER -->
 <footer class="site-footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <div class="footer-logo-box">
+      <div class="footer-logo">
         <svg viewBox="0 0 48 48" fill="none"><path d="M8 38L20 10L27 27" stroke="#0B4A44" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 10L32 38" stroke="#0B4A44" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 28H27" stroke="#0B4A44" stroke-width="3.5" stroke-linecap="round"/></svg>
       </div>
-      <div class="footer-name">Luís Albert Advocacia</div>
+      <div class="footer-nome">Luís Albert Advocacia</div>
     </div>
-    <div class="footer-copy">
-      LAADV — JusData Analytics v1.0 · Plataforma Administrativa Interna<br>
-      Dados: <a href="https://datajud-wiki.cnj.jus.br/" target="_blank">CNJ DataJud</a> · Manaus – AM
-    </div>
+    <div class="footer-copy">LAADV — JusData Analytics v2.0 · CNJ DataJud<br>Manaus – AM</div>
   </div>
 </footer>
 
+<div id="dev-panel">
+  <div class="dev-head">
+    <span class="dev-title">⬛ LAADV Dev v2.0</span>
+    <div class="dev-tabs">
+      <button class="dev-tab active" onclick="swDevTab('log',this)">LOG</button>
+      <button class="dev-tab" onclick="swDevTab('resp',this)">RESPONSE</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" onclick="toggleDev()">✕</button>
+  </div>
+  <div class="dev-body" id="dev-log"></div>
+  <div class="dev-body hidden" id="dev-resp" style="white-space:pre-wrap;word-break:break-all;font-size:10px;color:rgba(255,255,255,.5)"></div>
+</div>
+
 <script>
 "use strict";
-/* ================================================================
-   META
-   ================================================================ */
-const VER = '1.0.0';
-const CHANGELOG = `[v1.0.0] 2026-03-18
-+ Design LAADV completo (teal/gold, Cormorant+DM Sans)
-+ KPIs, gráficos, tabelas, teses jurídicas
-+ Dados simulados + integração DataJud via GAS
-+ Cache localStorage 1h + exportação CSV
+const GAS_URL  = 'https://script.google.com/macros/s/AKfycbzifAehNzlgStKxWRW6vQOn9mWV0otCKjT7gu7QSzcZkrw9AZ4r8Nz1C3FpLJlS_pEf5Q/exec';
+const API_KEY  = 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
+const SHEET_ID = '1v2UI_OSF6r_WEfTc51SDAdY8uTZqIcARxNHGhIZROys';
+const CFG_KEY  = 'laadv_jd2_cfg';
 
-[BUGS NÃO REGREDIR]
-- Chart.js: SEMPRE destroy() antes de recriar
-- DataJud partes: nested query obrigatória
-- TJDFT: índice api_publica_tjdft
-- outcomes simulados = frações; reais = contagens
+let CFG = { url: GAS_URL, key: API_KEY, sid: SHEET_ID };
+let lastResp   = null;
+let selEmp     = null; // empresa selecionada
+let curData1   = null; // dados relatório 1
+let curData2f  = null; // dados filtros
+let curPag2    = 1;
 
-[ROADMAP]
-v1.1.0 — Query per-ano outcomes exatos
-v1.2.0 — Busca por CNPJ
-v1.3.0 — Multi-tribunal paralelo`;
+let cT1=null, cO1=null, cG1=null;
 
-const ERR_LOG = [];
-let lastResp  = null;
-let curData   = null;
-
-/* ================================================================
-   CONFIG
-   ================================================================ */
-const CFG_KEY = 'laadv_jd_cfg_v1';
-let CFG = { gasUrl:'https://script.google.com/macros/s/AKfycbzifAehNzlgStKxWRW6vQOn9mWV0otCKjT7gu7QSzcZkrw9AZ4r8Nz1C3FpLJlS_pEf5Q/exec', apiKey:'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==', sheetId:'1v2UI_OSF6r_WEfTc51SDAdY8uTZqIcARxNHGhIZROys', cacheTTL:3600000, version:'1.0.7' };
-
+// ── CONFIG ──────────────────────────────────────────────────────
 function loadCfg() {
-  try { const s = localStorage.getItem(CFG_KEY); if(s) { const saved=JSON.parse(s); if(saved.gasUrl) CFG.gasUrl=saved.gasUrl; if(saved.apiKey) CFG.apiKey=saved.apiKey; if(saved.sheetId) CFG.sheetId=saved.sheetId; if(saved.cacheTTL) CFG.cacheTTL=saved.cacheTTL; } } catch(e){}
-  updStatus();
-  dlog('INIT',`Config: GAS=${CFG.gasUrl?'✓':'⚠ não configurada'}`);
+  try { const s=localStorage.getItem(CFG_KEY); if(s){ const p=JSON.parse(s); if(p.url)CFG.url=p.url; if(p.key)CFG.key=p.key; if(p.sid)CFG.sid=p.sid; } } catch(e){}
+  updStatus(); ping();
 }
-
-function salvarConfig() {
-  CFG.gasUrl  = document.getElementById('cfg-gas-url').value.trim();
-  CFG.apiKey  = document.getElementById('cfg-api-key').value.trim();
-  CFG.sheetId = document.getElementById('cfg-sheet-id').value.trim();
-  if (!CFG.gasUrl) { alert('URL do Apps Script é obrigatória.'); return; }
+function salvarCfg() {
+  CFG.url = document.getElementById('cfg-url').value.trim() || CFG.url;
+  CFG.key = document.getElementById('cfg-key').value.trim() || CFG.key;
+  CFG.sid = document.getElementById('cfg-sid').value.trim() || CFG.sid;
   localStorage.setItem(CFG_KEY, JSON.stringify(CFG));
-  closeModal('config-modal');
-  updStatus();
-  testConn();
+  closeModal('cfg-modal'); updStatus(); ping();
+}
+function abrirCfg() {
+  document.getElementById('cfg-url').value = CFG.url;
+  document.getElementById('cfg-key').value = CFG.key;
+  document.getElementById('cfg-sid').value = CFG.sid;
+  openModal('cfg-modal');
+}
+async function ping() {
+  try {
+    const r = await callGAS({action:'ping'});
+    if (r.ok) updStatus('ok','conectado');
+    else updStatus('err','erro');
+  } catch(e) { updStatus('err','inacessível'); }
+}
+function updStatus(st,tx) {
+  const d=document.getElementById('hdr-dot'); const t=document.getElementById('hdr-txt');
+  d.className='hdr-dot'; if(st==='ok')d.classList.add('ok'); if(st==='err')d.classList.add('err');
+  t.textContent=tx||'sem config.';
 }
 
-async function testConn() {
-  if (!CFG.gasUrl) { updStatus('err','sem config'); return; }
-  updStatus('loading','testando…');
+// ── API CALL ─────────────────────────────────────────────────────
+async function callGAS(params, ms=45000) {
+  const p = { ...params, apiKey: CFG.key, sheetId: CFG.sid };
+  const qs = new URLSearchParams(p).toString();
+  const ctrl = new AbortController();
+  const tid  = setTimeout(()=>ctrl.abort(), ms);
   try {
-    const r = await ftch(`${CFG.gasUrl}?action=ping&apiKey=${encodeURIComponent(CFG.apiKey)}`,{},8000);
+    const r = await fetch(`${CFG.url}?${qs}`, {signal:ctrl.signal});
     const d = await r.json();
-    if (d.ok) { updStatus('ok','conectado'); dlog('OK','GAS ping: '+JSON.stringify(d)); }
-    else       { updStatus('err','erro backend'); dlog('ERROR','Ping fail: '+JSON.stringify(d)); }
-  } catch(e) { updStatus('err','inacessível'); dlog('ERROR','Falha GAS: '+e.message); }
+    lastResp = d;
+    document.getElementById('dev-resp').textContent = JSON.stringify(d,null,2);
+    return d;
+  } finally { clearTimeout(tid); }
 }
 
-function updStatus(st, tx) {
-  const dot = document.getElementById('hdr-dot');
-  const txt = document.getElementById('hdr-status-txt');
-  const top = document.getElementById('topbar-status');
-  dot.className = 'hdr-dot';
-  if (!st) { st = CFG.gasUrl?'ok':'none'; tx = CFG.gasUrl?'configurado':'sem config.'; }
-  if (st==='ok')  dot.classList.add('ok');
-  if (st==='err') dot.classList.add('err');
-  txt.textContent = tx||'sem config.';
-  top.textContent = 'JusData Analytics'+(tx?' · '+tx:'');
+// ── TABS ─────────────────────────────────────────────────────────
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
 }
 
-/* ================================================================
-   CACHE
-   ================================================================ */
-function ckKey(e,t,ai,af,p) { return `laadv_jd_${e.toUpperCase()}|${t}|${ai}|${af}|${p}`; }
+// ── YEARS ────────────────────────────────────────────────────────
+function initYears() {
+  const cur = new Date().getFullYear();
+  [['t1-ano-i',2019],['t1-ano-f',cur],['t2-ano-i',2022],['t2-ano-f',cur]].forEach(([id,def])=>{
+    const el=document.getElementById(id);
+    for(let y=cur;y>=2015;y--) el.appendChild(new Option(y,y,y===def,y===def));
+  });
+}
 
-function ckGet(k) {
+// ── SEÇÃO 1: SELETOR DE EMPRESA ──────────────────────────────────
+function selEmpresa(card, setor, label, razao) {
+  document.querySelectorAll('.emp-card').forEach(c=>c.classList.remove('sel'));
+  card.classList.add('sel');
+  selEmp = { setor, label, razao };
+  document.getElementById('btn-gerar').disabled = false;
+  document.getElementById('sel-hint').textContent = `Selecionado: ${label}`;
+  dlog('INFO', `Empresa selecionada: ${label} (${setor})`);
+}
+
+async function gerarRelatorio1() {
+  if (!selEmp) return;
+  const anoI = document.getElementById('t1-ano-i').value;
+  const anoF = document.getElementById('t1-ano-f').value;
+
+  showLoad('Consultando DataJud…', `${selEmp.label} · ${selEmp.setor}`);
   try {
-    const i = JSON.parse(localStorage.getItem(k));
-    if (!i) return null;
-    if (Date.now()-i.ts > CFG.cacheTTL) { localStorage.removeItem(k); return null; }
-    dlog('INFO','Cache HIT: '+k); return i.data;
-  } catch(e) { return null; }
-}
-function ckSet(k,d) { try { localStorage.setItem(k,JSON.stringify({ts:Date.now(),data:d})); } catch(e){} }
-
-/* ================================================================
-   FETCH
-   ================================================================ */
-async function ftch(url,opts,ms) {
-  const c = new AbortController();
-  const t = setTimeout(()=>c.abort(),ms);
-  try { return await fetch(url,{...opts,signal:c.signal}); } finally { clearTimeout(t); }
-}
-
-/* ================================================================
-   SEARCH
-   ================================================================ */
-async function buscar() {
-  const emp = document.getElementById('empresa-input').value.trim();
-  const cat = document.getElementById('f-categoria').value;
-  const tri = document.getElementById('f-tribunal').value;
-  const ai  = document.getElementById('f-ano-i').value;
-  const af  = document.getElementById('f-ano-f').value;
-  const grau = document.getElementById('f-polo').value;  // agora é grau
-
-  if (!CFG.gasUrl) {
-    dlog('WARN','Sem backend → dados simulados');
-    const sim = simData(emp||cat, tri, parseInt(ai), parseInt(af));
-    renderR(sim, false, true); return;
-  }
-
-  const ck = ckKey(emp||cat,tri,ai,af,cat,grau);
-  const cached = ckGet(ck);
-  if (cached) { renderR(cached,true,false); return; }
-
-  showLoad('Consultando CNJ DataJud…','aguardando resposta');
-  document.getElementById('btn-search').disabled = true;
-  try {
-    const params = new URLSearchParams({action:'search',empresa:emp,categoria:cat,tribunal:tri,anoInicio:ai,anoFim:af,grau,apiKey:CFG.apiKey,sheetId:CFG.sheetId});
-    const res = await ftch(`${CFG.gasUrl}?${params}`,{},45000);
-    setLoad('Processando resultados…','calculando métricas');
-    const data = await res.json(); lastResp = data;
-    if (data.error) throw new Error(data.error);
-    ckSet(ck,data);
-    renderR(data,false,false);
-    dlog('OK',`Busca: ${emp}/${tri} → ${data.total}`);
+    const r = await callGAS({
+      action: 'empresa',
+      setor:  selEmp.setor,
+      label:  selEmp.label,
+      tribunal: 'TJRJ',
+      anoInicio: anoI,
+      anoFim: anoF,
+    });
+    if (r.error) throw new Error(r.error);
+    curData1 = r;
+    renderRelatorio1(r);
+    dlog('OK', `Relatório: ${selEmp.label} → ${r.total} ações`);
   } catch(e) {
-    dlog('ERROR','Busca: '+e.message);
-    ERR_LOG.push({ts:new Date().toISOString(),msg:e.message});
-    alert('Erro ao consultar DataJud:\n'+e.message);
-  } finally {
-    hideLoad();
-    document.getElementById('btn-search').disabled=false;
-  }
+    dlog('ERROR', e.message);
+    alert('Erro: '+e.message);
+  } finally { hideLoad(); }
 }
 
-/* ================================================================
-   DADOS SIMULADOS
-   ================================================================ */
-function simData(emp,tri,ai,af) {
-  const P = {
-    'LIGHT':{
-      por:[{a:'2019',t:5980,s:2050},{a:'2020',t:4970,s:1720},{a:'2021',t:7150,s:3100},{a:'2022',t:8650,s:4180},{a:'2023',t:9480,s:4620},{a:'2024',t:4120,s:1880}],
-      out:{p:.52,i:.22,pp:.19,a:.07},cond:2340,comarcas:38,
-      com:[{n:'Capital / Rio de Janeiro',ac:1240,pct:74,cv:2580,pf:'JEC + Vara Cível'},{n:'Nova Iguaçu',ac:487,pct:69,cv:2100,pf:'JEC predominante'},{n:'Duque de Caxias',ac:412,pct:71,cv:2200,pf:'JEC predominante'},{n:'Campos dos Goytacazes',ac:318,pct:61,cv:1950,pf:'JEC + Cível'},{n:'Belford Roxo',ac:274,pct:78,cv:2400,pf:'JEC predominante'},{n:'São João de Meriti',ac:198,pct:65,cv:1800,pf:'JEC'},{n:'Niterói',ac:187,pct:63,cv:2750,pf:'JEC + Cível'},{n:'Petrópolis',ac:143,pct:55,cv:1650,pf:'JEC + Cível'}],
-      tk:'light_toi',
-    }
-  };
-  let pr = null;
-  for (const k in P) { if (emp.toUpperCase().includes(k)) { pr=P[k]; break; } }
-  if (!pr) {
-    const anos = [];
-    for (let y=ai;y<=af;y++) { const b=Math.floor(Math.random()*3000)+800; anos.push({a:String(y),t:b,s:Math.floor(b*.4)}); }
-    pr = { por:anos, out:{p:.48,i:.28,pp:.17,a:.07}, cond:Math.floor(Math.random()*1200)+1600, comarcas:Math.floor(Math.random()*12)+18,
-      com:[{n:'Capital',ac:Math.floor(Math.random()*600)+300,pct:Math.floor(Math.random()*18)+52,cv:Math.floor(Math.random()*900)+1800,pf:'JEC + Cível'}],
-      tk:'generica' };
-  }
-  const filt = pr.por.filter(d=>parseInt(d.a)>=ai && parseInt(d.a)<=af);
-  const tot  = filt.reduce((s,d)=>s+d.t,0);
-  return {
-    empresa:emp, tribunal:tri, anoInicio:ai, anoFim:af, timestamp:new Date().toISOString(),
-    isSimulated:true, total:tot,
-    porAno: filt.map(d=>({ano:d.a,count:d.t,toi:d.s})),
-    outcomes:{procedente:pr.out.p,procedente_parcial:pr.out.pp,improcedente:pr.out.i,acordo:pr.out.a},
-    condenacaoMedia:pr.cond, comarcasAtivas:pr.comarcas,
-    comarcas:pr.com.map(c=>({nome:c.n,acoes:c.ac,pct:c.pct,cond:c.cv,perfil:c.pf})),
-    tesesKey:pr.tk, media:Math.round(tot/(filt.length||1)),
-  };
+function renderRelatorio1(d) {
+  const sec = document.getElementById('r1-section');
+  sec.classList.remove('hidden');
+
+  document.getElementById('r1-nome').textContent = selEmp.label.toUpperCase();
+  document.getElementById('r1-meta').innerHTML = `
+    <span>📍 TJRJ</span>
+    <span>📅 ${d.anoInicio}–${d.anoFim}</span>
+    <span>🕒 ${new Date(d.timestamp).toLocaleString('pt-BR')}</span>
+    <span>📊 ${d.total.toLocaleString('pt-BR')} ações no setor</span>`;
+  document.getElementById('r1-cache-tag').classList.toggle('hidden', !d.fromCache);
+  document.getElementById('r1-tag-setor').textContent = `Setor: ${selEmp.setor}`;
+
+  const out = d.outcomes||{};
+  const p=out.procedente||0, pp=out.procedente_parcial||0;
+  const im=out.improcedente||0, ex=out.extincao||0, ac=out.acordo||0;
+  const dec = p+pp+im+ex+ac;
+  const pct = dec>0 ? (((p+pp)/dec)*100).toFixed(1) : '—';
+
+  animN('k1-media', d.media||0);
+  document.getElementById('k1-proc').textContent  = pct !== '—' ? pct+'%' : '—';
+  document.getElementById('k1-total').textContent = d.total.toLocaleString('pt-BR');
+  document.getElementById('k1-dec').textContent   = dec.toLocaleString('pt-BR');
+  document.getElementById('k1-media-sub').textContent = `${d.anoInicio}–${d.anoFim} · TJRJ`;
+  document.getElementById('k1-total-sub').textContent = `${d.anoInicio}–${d.anoFim}`;
+
+  // Info sobre dados
+  const infoEl = document.getElementById('r1-info');
+  const infoTxt = document.getElementById('r1-info-txt');
+  infoEl.style.display = 'flex';
+  infoTxt.innerHTML = `Dados reais do DataJud/CNJ para o setor <strong>${selEmp.setor}</strong>. 
+    Os números representam ações do setor inteiro no TJRJ — 
+    a empresa <strong>${selEmp.label}</strong> é a principal ré neste segmento.`;
+
+  document.getElementById('ch1-title').textContent = `Volume de ações — Setor ${selEmp.setor} · TJRJ`;
+  document.getElementById('ch1-sub').textContent   = `${d.anoInicio}–${d.anoFim} · CNJ DataJud`;
+
+  rChartTrend1(d.porAno||[]);
+  rChartOut1(out, d.total);
+  rChartGrau1(d.porGrau||[]);
+  rTableProcessos1(d.processos||[]);
+  rTeses(selEmp.setor, 'r1-teses-p', 'r1-teses-c');
+  document.getElementById('r1-teses-sub').textContent = `Setor: ${selEmp.setor} · Empresa: ${selEmp.label}`;
+
+  sec.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
-/* ================================================================
-   RENDER
-   ================================================================ */
-let cT=null,cO=null,cC=null;
-
-function renderR(data,fromCache,isSim) {
-  curData = data;
-  const sec = document.getElementById('results-section');
-  sec.classList.remove('hidden'); sec.style.animation='fadeIn .3s ease';
-
-  document.getElementById('r-nome').textContent = data.empresa.toUpperCase();
-  document.getElementById('r-meta').innerHTML = `
-    <span class="result-meta-item">📍 ${data.tribunal}</span>
-    <span class="result-meta-item">📅 ${data.anoInicio}–${data.anoFim}</span>
-    <span class="result-meta-item">🕒 ${new Date(data.timestamp).toLocaleString('pt-BR')}</span>
-    <span class="result-meta-item">📊 ${data.total.toLocaleString('pt-BR')} ações</span>`;
-
-  document.getElementById('tag-cache').classList.toggle('hidden',!fromCache);
-  document.getElementById('tag-sim').classList.toggle('hidden',!isSim);
-  const sa = document.getElementById('sim-alert');
-  sa.classList.toggle('hidden',!isSim);
-  document.getElementById('footer-ts').textContent = 'Consulta: '+new Date(data.timestamp).toLocaleString('pt-BR');
-
-  // KPIs
-  const pA   = data.porAno||[];
-  const tot  = data.total||0;
-  const anos = pA.length||1;
-  const med  = data.media || Math.round(tot/anos);
-  const out  = data.outcomes||{};
-  const p    = out.procedente||0;
-  const pp   = out.procedente_parcial||0;
-  const i    = out.improcedente||0;
-  const a    = out.acordo||0;
-  const isFrac = (p+pp+i+a) <= 1.05;
-  const pct  = isFrac ? (((p+pp)*100).toFixed(0)) : (((p+pp)/(p+pp+i+a||1))*100).toFixed(0);
-
-  animN('kpi-media', med);
-  document.getElementById('kpi-media-sub').textContent = `${data.anoInicio}–${data.anoFim} · ${data.tribunal}`;
-  document.getElementById('kpi-proc').textContent = pct+'%';
-  document.getElementById('kpi-cond').textContent = data.condenacaoMedia ? 'R$ '+data.condenacaoMedia.toLocaleString('pt-BR') : '—';
-  document.getElementById('kpi-comarca').textContent = data.comarcasAtivas||'—';
-  document.getElementById('kpi-comarca-sub').textContent = 'no estado · '+data.tribunal;
-
-  const empNome = data.empresa.split(' ')[0];
-  document.getElementById('ch1-title').textContent = `Volume de ações — ${empNome} vs produto específico no ${data.tribunal}`;
-  document.getElementById('ch1-sub').textContent   = `${data.anoInicio}–${data.anoFim} · ajuizamentos por ano`;
-  document.getElementById('ch2-title').textContent = `Resultado das ações (${data.anoFim})`;
-  document.getElementById('tag-ano').textContent   = data.anoFim;
-  document.getElementById('teses-sub').textContent = 'argumentos para ações contra: '+data.empresa;
-
-  rChartTrend(pA);
-  rChartOut(out, tot, isFrac);
-  rChartComarca(data.comarcas||[]);
-  rTableComarcas(data.comarcas||[]);
-  rTableAnual(pA, out, tot, isFrac);
-  rTeses(data.tesesKey||'generica');
-
-  document.getElementById('btn-export').disabled = false;
-  sec.scrollIntoView({behavior:'smooth',block:'start'});
-  dlog('INFO',`Render OK: ${data.empresa} / ${data.tribunal} · total=${tot} · proc=${pct}%`);
-}
-
-/* ── CHART TREND ── */
-function rChartTrend(pA) {
-  const ctx = document.getElementById('chart-trend').getContext('2d');
-  if (cT) { cT.destroy(); cT=null; }
-  cT = new Chart(ctx, {
+function rChartTrend1(porAno) {
+  const ctx = document.getElementById('ch1-trend').getContext('2d');
+  if (cT1) { cT1.destroy(); cT1=null; }
+  if (!porAno.length) return;
+  cT1 = new Chart(ctx, {
     type:'bar',
     data:{
-      labels: pA.map(d=>d.ano),
-      datasets:[
-        { label:'Total ações', data:pA.map(d=>d.count||0), backgroundColor:'rgba(11,74,68,.75)', borderColor:'#0B4A44', borderWidth:1, borderRadius:3 },
-        { label:'Produto específico', data:pA.map(d=>d.toi||Math.round((d.count||0)*.4)), backgroundColor:'rgba(201,169,62,.8)', borderColor:'#C9A93E', borderWidth:1, borderRadius:3 }
-      ]
+      labels: porAno.map(d=>d.ano),
+      datasets:[{ label:'Ações', data:porAno.map(d=>d.count),
+        backgroundColor:'rgba(11,74,68,.75)', borderColor:'#0B4A44', borderWidth:1, borderRadius:3 }]
     },
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{backgroundColor:'#0B4A44',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',borderColor:'#C9A93E',borderWidth:1, callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toLocaleString('pt-BR')}`}} },
+      plugins:{ legend:{display:false}, tooltip:{backgroundColor:'#0B4A44',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',
+        callbacks:{label:c=>` ${c.parsed.y.toLocaleString('pt-BR')} ações`}} },
       scales:{
-        x:{ grid:{color:'rgba(0,0,0,.04)'}, ticks:{color:'#8899AA',font:{family:'DM Sans',size:12}} },
-        y:{ grid:{color:'rgba(0,0,0,.04)'}, ticks:{color:'#8899AA',font:{family:'DM Sans',size:11},callback:v=>v.toLocaleString('pt-BR')} }
+        x:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#8899AA',font:{family:'DM Sans',size:12}}},
+        y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#8899AA',font:{family:'DM Sans',size:11},callback:v=>v.toLocaleString('pt-BR')}}
       }
     }
   });
 }
 
-/* ── CHART DONUT ── */
-function rChartOut(out, tot, isFrac) {
-  const ctx = document.getElementById('chart-outcomes').getContext('2d');
-  if (cO) { cO.destroy(); cO=null; }
-  const p   = isFrac ? Math.round((out.procedente||0)*tot)   : (out.procedente||0);
-  const pp  = isFrac ? Math.round((out.procedente_parcial||0)*tot) : (out.procedente_parcial||0);
-  const im  = isFrac ? Math.round((out.improcedente||0)*tot) : (out.improcedente||0);
-  const ac  = isFrac ? Math.round((out.acordo||0)*tot)       : (out.acordo||0);
-  const ext = isFrac ? Math.round((out.extincao||0)*tot)     : (out.extincao||0);
-  const and = Math.max(0, tot-p-pp-im-ac-ext);
-  const lbl = ['Procedente','Improcedente','Proc. Parcial','Acordo','Extinção s/ Mérito','Em Andamento'];
-  const val = [p,im,pp,ac,ext,and];
-  const col = ['#1A6B48','#8C1A1A','#C9A93E','#1A4B8C','#6B4F00','#8899AA'];
-  const f = {l:[],v:[],c:[]};
-  val.forEach((v,i)=>{ if(v>0){f.l.push(lbl[i]);f.v.push(v);f.c.push(col[i]);} });
-  cO = new Chart(ctx,{
+function rChartOut1(out, total) {
+  const ctx = document.getElementById('ch1-out').getContext('2d');
+  if (cO1) { cO1.destroy(); cO1=null; }
+  const p=out.procedente||0, pp=out.procedente_parcial||0;
+  const im=out.improcedente||0, ex=out.extincao||0, ac=out.acordo||0;
+  const and = Math.max(0, total-p-pp-im-ex-ac);
+  const lbl=['Procedente','Improcedente','Proc. Parcial','Acordo','Extinção','Em Andamento'];
+  const val=[p,im,pp,ac,ex,and];
+  const col=['#1A6B48','#8C1A1A','#C9A93E','#1A4B8C','#6B4F00','#8899AA'];
+  const f={l:[],v:[],c:[]};
+  val.forEach((v,i)=>{if(v>0){f.l.push(lbl[i]);f.v.push(v);f.c.push(col[i]);}});
+  cO1 = new Chart(ctx,{
     type:'doughnut',
-    data:{ labels:f.l, datasets:[{data:f.v,backgroundColor:f.c.map(c=>c+'cc'),borderColor:f.c,borderWidth:2,hoverOffset:6}] },
-    options:{
-      responsive:true, maintainAspectRatio:true, cutout:'58%',
-      plugins:{
-        legend:{position:'bottom',labels:{color:'#3D4F63',font:{family:'DM Sans',size:11},boxWidth:12,padding:10}},
+    data:{labels:f.l,datasets:[{data:f.v,backgroundColor:f.c.map(c=>c+'cc'),borderColor:f.c,borderWidth:2,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:true,cutout:'58%',
+      plugins:{legend:{position:'bottom',labels:{color:'#3D4F63',font:{family:'DM Sans',size:11},boxWidth:12,padding:8}},
         tooltip:{backgroundColor:'#0B4A44',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',
           callbacks:{label:c=>{const t=c.dataset.data.reduce((a,b)=>a+b,0);return ` ${c.parsed.toLocaleString('pt-BR')} (${((c.parsed/t)*100).toFixed(1)}%)`;}}
         }
@@ -949,140 +1030,312 @@ function rChartOut(out, tot, isFrac) {
   });
 }
 
-/* ── CHART COMARCA ── */
-function rChartComarca(comarcas) {
-  const ctx = document.getElementById('chart-comarca').getContext('2d');
-  if (cC) { cC.destroy(); cC=null; }
-  if (!comarcas.length) return;
-  const s = [...comarcas].sort((a,b)=>b.cond-a.cond).slice(0,7);
-  cC = new Chart(ctx,{
+function rChartGrau1(porGrau) {
+  const ctx = document.getElementById('ch1-grau').getContext('2d');
+  if (cG1) { cG1.destroy(); cG1=null; }
+  if (!porGrau.length) return;
+  const colors = {'JE':'rgba(11,74,68,.75)','G1':'rgba(201,169,62,.8)','G2':'rgba(26,75,140,.75)'};
+  cG1 = new Chart(ctx, {
     type:'bar',
     data:{
-      labels: s.map(c=>c.nome.split('/')[0].trim()),
-      datasets:[{
-        label:'Condenação média (R$)',
-        data:s.map(c=>c.cond||0),
-        backgroundColor:s.map((_,i)=>i===0?'rgba(11,74,68,.85)':'rgba(201,169,62,.65)'),
-        borderColor:s.map((_,i)=>i===0?'#0B4A44':'#C9A93E'),
-        borderWidth:1, borderRadius:3,
-      }]
+      labels:porGrau.map(d=>d.grau),
+      datasets:[{data:porGrau.map(d=>d.count),backgroundColor:porGrau.map(d=>colors[d.grau]||'rgba(136,153,170,.6)'),borderRadius:4}]
     },
     options:{
-      responsive:true, maintainAspectRatio:false, indexAxis:'y',
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'#0B4A44',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',callbacks:{label:c=>` R$ ${c.parsed.x.toLocaleString('pt-BR')}`}}},
+      responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#0B4A44',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',
+        callbacks:{label:c=>` ${c.parsed.x.toLocaleString('pt-BR')} ações`}}},
       scales:{
-        x:{ grid:{color:'rgba(0,0,0,.04)'}, ticks:{color:'#8899AA',font:{family:'DM Sans',size:11},callback:v=>'R$ '+v.toLocaleString('pt-BR')} },
-        y:{ grid:{display:false}, ticks:{color:'#3D4F63',font:{family:'DM Sans',size:12},padding:8} }
+        x:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#8899AA',font:{family:'DM Sans',size:11},callback:v=>v.toLocaleString('pt-BR')}},
+        y:{grid:{display:false},ticks:{color:'#3D4F63',font:{family:'DM Sans',size:13,weight:'600'}}}
       }
     }
   });
 }
 
-/* ── TABLE COMARCAS ── */
-function rTableComarcas(com) {
-  const tb = document.getElementById('tbody-comarcas');
-  if (!com.length) { tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--gray-mid)">Sem dados</td></tr>'; return; }
-  tb.innerHTML = com.map(c=>{
-    const pct=c.pct||0;
-    const pc=pct>=65?'pct-high':pct>=50?'pct-mid':'pct-low';
+function rTableProcessos1(procs) {
+  const tb = document.getElementById('tb1-processos');
+  if (!procs.length) {
+    tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--gray-mid)">Nenhum processo retornado</td></tr>';
+    return;
+  }
+  tb.innerHTML = procs.map(p=>{
+    const res = p.resultado||'—';
+    const resCls = res==='Procedente'?'tag-green':res==='Improcedente'?'tag-red':res.includes('Parcial')?'tag-gold':res==='Acordo'?'tag-blue':'tag-gray';
+    const dt = p.dataAjuizamento ? String(p.dataAjuizamento).replace(/(\d{4})(\d{2})(\d{2}).*/,'$3/$2/$1') : '—';
     return `<tr>
-      <td class="td-strong">${c.nome}</td>
-      <td>${(c.acoes||0).toLocaleString('pt-BR')}</td>
-      <td><span class="pct-pill ${pc}">${pct}%</span></td>
-      <td style="color:var(--teal);font-weight:700">R$ ${(c.cond||0).toLocaleString('pt-BR')}</td>
-      <td><span class="tag tag-gray" style="font-size:.6rem">${c.perfil||'—'}</span></td>
+      <td class="td-s" style="font-size:.72rem;font-family:monospace">${p.numero||'—'}</td>
+      <td><span class="tag tag-teal">${p.grau||'—'}</span></td>
+      <td>${p.classe||'—'}</td>
+      <td>${p.comarca||'—'}</td>
+      <td>${dt}</td>
+      <td><span class="tag ${resCls}">${res}</span></td>
     </tr>`;
   }).join('');
 }
 
-/* ── TABLE ANUAL ── */
-function rTableAnual(pA, out, tot, isFrac) {
-  const tb = document.getElementById('tbody-anual');
-  if (!pA.length) { tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:1.5rem;color:var(--gray-mid)">Sem dados</td></tr>'; return; }
-  const p=out.procedente||0,pp=out.procedente_parcial||0,im=out.improcedente||0,ac=out.acordo||0,ext=out.extincao||0;
-  tb.innerHTML = pA.map(row=>{
-    const fr = tot>0?row.count/tot:0;
-    const cv = isFrac?tot:1;
-    const rp =Math.round(p*cv*fr),rpp=Math.round(pp*cv*fr),ri=Math.round(im*cv*fr),ra=Math.round(ac*cv*fr),re=Math.round((ext||0)*cv*fr);
-    const rd=rp+rpp+ri+ra+re, rand=Math.max(0,row.count-rd);
-    const pctF=rd>0?(((rp+rpp)/rd)*100).toFixed(1):null;
-    const pc=pctF&&parseFloat(pctF)>=65?'pct-high':pctF&&parseFloat(pctF)>=50?'pct-mid':'pct-low';
-    return `<tr>
-      <td class="td-strong">${row.ano}</td>
-      <td><strong>${row.count.toLocaleString('pt-BR')}</strong></td>
-      <td><span class="tag tag-green">${rp.toLocaleString('pt-BR')}</span></td>
-      <td><span class="tag tag-red">${ri.toLocaleString('pt-BR')}</span></td>
-      <td><span class="tag tag-gold">${rpp.toLocaleString('pt-BR')}</span></td>
-      <td>${ra.toLocaleString('pt-BR')}</td>
-      <td><span class="tag tag-gray">${rand.toLocaleString('pt-BR')}</span></td>
-      <td>${pctF?`<span class="pct-pill ${pc}">${pctF}%</span>`:'—'}</td>
-    </tr>`;
+// ── SEÇÃO 2a: PROCESSO ───────────────────────────────────────────
+async function buscaProcesso() {
+  const num = document.getElementById('t2-numero').value.trim();
+  const tri = document.getElementById('t2-tribunal').value;
+  if (!num) { document.getElementById('t2-numero').focus(); return; }
+
+  showLoad('Buscando processo…', num);
+  try {
+    const r = await callGAS({ action:'processo', numero:num, tribunal:tri });
+    if (r.error) throw new Error(r.error);
+    renderProcesso(r);
+    dlog('OK', `Processo ${num}: encontrado=${r.encontrado}`);
+  } catch(e) { dlog('ERROR', e.message); alert('Erro: '+e.message); }
+  finally { hideLoad(); }
+}
+
+function renderProcesso(r) {
+  const el = document.getElementById('r2-proc');
+  el.classList.remove('hidden');
+  if (!r.encontrado) {
+    el.innerHTML=`<div class="alert alert-warn"><span>⚠</span><div>Processo <strong>${r.numero}</strong> não encontrado no ${r.tribunal}. Verifique o número e o tribunal.</div></div>`;
+    return;
+  }
+  el.innerHTML = r.processos.map(p=>{
+    const res = p.resultado||'—';
+    const resCls = res==='Procedente'?'tag-green':res==='Improcedente'?'tag-red':res.includes('Parcial')?'tag-gold':res==='Acordo'?'tag-blue':'tag-gray';
+    const dt = p.dataAjuizamento ? String(p.dataAjuizamento).replace(/(\d{4})(\d{2})(\d{2}).*/,'$3/$2/$1') : '—';
+    const assuntos = (p.assuntos||[]).map(a=>`<span class="tese-norma">${a.codigo} — ${a.nome}</span>`).join('');
+    return `<div class="proc-card">
+      <div class="proc-numero">${p.numero}</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+        <span class="tag tag-teal">${p.tribunal}</span>
+        <span class="tag tag-blue">${p.grau}</span>
+        <span class="tag ${resCls}">${res}</span>
+      </div>
+      <div class="proc-grid">
+        <div class="proc-field"><span class="proc-field-label">Classe</span><span class="proc-field-val">${p.classe}</span></div>
+        <div class="proc-field"><span class="proc-field-label">Comarca</span><span class="proc-field-val">${p.comarca}</span></div>
+        <div class="proc-field"><span class="proc-field-label">Ajuizamento</span><span class="proc-field-val">${dt}</span></div>
+        <div class="proc-field"><span class="proc-field-label">Último Movimento</span><span class="proc-field-val">${p.ultimoMov ? `${p.ultimoMov.codigo} — ${p.ultimoMov.nome}` : '—'}</span></div>
+      </div>
+      ${assuntos ? `<div class="proc-movimentos"><div class="proc-field-label" style="margin-bottom:.4rem">Assuntos</div><div style="display:flex;gap:.4rem;flex-wrap:wrap">${assuntos}</div></div>` : ''}
+    </div>`;
   }).join('');
 }
 
-/* ================================================================
-   TESES
-   ================================================================ */
+function limparProcesso() {
+  document.getElementById('t2-numero').value='';
+  document.getElementById('r2-proc').classList.add('hidden');
+}
+
+// ── SEÇÃO 2b: FILTROS ────────────────────────────────────────────
+async function buscaFiltros(pagina) {
+  curPag2 = pagina||1;
+  showLoad('Consultando DataJud…', 'aplicando filtros');
+  try {
+    const r = await callGAS({
+      action:   'filtros',
+      tribunal: document.getElementById('t2-ftribunal').value,
+      anoInicio:document.getElementById('t2-ano-i').value,
+      anoFim:   document.getElementById('t2-ano-f').value,
+      grau:     document.getElementById('t2-grau').value,
+      assunto:  document.getElementById('t2-assunto').value,
+      ibge:     document.getElementById('t2-ibge').value,
+      movimento:document.getElementById('t2-mov').value,
+      classe:   document.getElementById('t2-classe').value,
+      pagina:   curPag2-1,
+    });
+    if (r.error) throw new Error(r.error);
+    curData2f = r;
+    renderFiltros(r);
+    document.getElementById('btn-exportf').disabled = false;
+    dlog('OK', `Filtros: ${r.total} processos · pág ${curPag2}/${r.totalPaginas}`);
+  } catch(e) { dlog('ERROR', e.message); alert('Erro: '+e.message); }
+  finally { hideLoad(); }
+}
+
+function renderFiltros(r) {
+  const sec = document.getElementById('r2-filtros');
+  sec.classList.remove('hidden');
+
+  document.getElementById('r2f-total').textContent = `${r.total.toLocaleString('pt-BR')} processos encontrados`;
+  document.getElementById('r2f-meta').textContent  = ` · ${r.tribunal} · ${r.anoInicio}–${r.anoFim} · pág ${curPag2}/${r.totalPaginas}`;
+
+  const out = r.outcomes||{};
+  const p=out.procedente||0, pp=out.procedente_parcial||0;
+  const im=out.improcedente||0;
+  const dec=p+pp+im+(out.extincao||0)+(out.acordo||0);
+  if (dec>0) {
+    const procTag=document.getElementById('r2f-proc-tag');
+    const impTag=document.getElementById('r2f-imp-tag');
+    procTag.textContent=`✓ Procedentes: ${(((p+pp)/dec)*100).toFixed(1)}%`;
+    procTag.className='tag tag-green'; procTag.style.display='inline-flex';
+    impTag.textContent=`✗ Improcedentes: ${((im/dec)*100).toFixed(1)}%`;
+    impTag.className='tag tag-red'; impTag.style.display='inline-flex';
+  }
+
+  const tb = document.getElementById('tb2-processos');
+  if (!r.processos.length) {
+    tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--gray-mid)">Nenhum processo encontrado com esses filtros</td></tr>';
+  } else {
+    tb.innerHTML = r.processos.map(p=>{
+      const res=p.resultado||'—';
+      const resCls=res==='Procedente'?'tag-green':res==='Improcedente'?'tag-red':res.includes('Parcial')?'tag-gold':res==='Acordo'?'tag-blue':'tag-gray';
+      const dt=p.dataAjuizamento?String(p.dataAjuizamento).replace(/(\d{4})(\d{2})(\d{2}).*/,'$3/$2/$1'):'—';
+      const ass=(p.assuntos||[]).map(a=>a.nome).join(', ')||'—';
+      return `<tr>
+        <td class="td-s" style="font-size:.72rem;font-family:monospace">${p.numero}</td>
+        <td><span class="tag tag-teal">${p.grau}</span></td>
+        <td>${p.classe}</td>
+        <td>${p.comarca}</td>
+        <td>${dt}</td>
+        <td style="font-size:.72rem;max-width:180px;white-space:normal">${ass}</td>
+        <td><span class="tag ${resCls}">${res}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Paginação
+  const pag = document.getElementById('r2-pag');
+  pag.innerHTML='';
+  if (r.totalPaginas > 1) {
+    const prev=document.createElement('button');
+    prev.className='page-btn'; prev.textContent='← Anterior';
+    prev.disabled=curPag2<=1;
+    prev.onclick=()=>buscaFiltros(curPag2-1);
+    pag.appendChild(prev);
+
+    const info=document.createElement('span');
+    info.className='page-info';
+    info.textContent=`Página ${curPag2} de ${r.totalPaginas}`;
+    pag.appendChild(info);
+
+    const next=document.createElement('button');
+    next.className='page-btn'; next.textContent='Próxima →';
+    next.disabled=curPag2>=r.totalPaginas;
+    next.onclick=()=>buscaFiltros(curPag2+1);
+    pag.appendChild(next);
+  }
+}
+
+function limparFiltros() {
+  ['t2-grau','t2-assunto','t2-ibge','t2-mov','t2-classe'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('r2-filtros').classList.add('hidden');
+  document.getElementById('btn-exportf').disabled=true;
+  curData2f=null;
+}
+
+// ── TESES ────────────────────────────────────────────────────────
 const TESES = {
-  light_toi:{
+  energia:{
     p:[
       {t:'Cobrança sem amparo em resolução ANEEL vigente',f:'green',
-       d:'A TOI não está prevista como tarifa homologada nas Resoluções Normativas da ANEEL. A cobrança de valores fora da estrutura tarifária aprovada viola o art. 13 da Lei nº 9.074/95 e o princípio da legalidade tarifária. O consumidor questiona a ausência de ato regulatório específico que autorize a cobrança discriminada na conta.',
+       d:'A TOI não está prevista como tarifa homologada nas Resoluções Normativas da ANEEL. A cobrança de valores fora da estrutura tarifária aprovada viola o art. 13 da Lei nº 9.074/95 e o princípio da legalidade tarifária.',
        n:['RN ANEEL 414/2010','Lei 9.074/95 art. 13','CDC art. 39 I']},
-      {t:'Falta de transparência e informação inadequada ao consumidor',f:'green',
-       d:'A cobrança aparece na fatura sem descrição clara do serviço prestado, do valor e da base de cálculo. O CDC exige informação prévia, adequada e em destaque sobre valores cobrados. A ausência de clareza configura prática abusiva nos termos do art. 51 do CDC e falha no dever de informar previsto no art. 6º III.',
+      {t:'Falta de transparência — informação inadequada ao consumidor',f:'green',
+       d:'A cobrança aparece na fatura sem descrição clara do serviço, valor e base de cálculo. O CDC exige informação prévia, adequada e em destaque. A ausência de clareza configura prática abusiva (art. 51 CDC).',
        n:['CDC art. 6º III','CDC art. 51','CDC art. 39 V']},
-      {t:'Cobrança por serviço que é obrigação da concessionária (dupla remuneração)',f:'green',
-       d:'A instalação e manutenção de medidores são encargos da concessionária, já remunerados pela tarifa de distribuição (TUSD/TUST). Cobrar TOI separadamente implica dupla remuneração pelo mesmo serviço. Tese especialmente forte quando a ligação foi solicitada pelo próprio sistema de distribuição.',
+      {t:'Cobrança por serviço que é obrigação da concessionária',f:'green',
+       d:'A instalação e manutenção de medidores são encargos da concessionária, já remunerados pela tarifa TUSD/TUST. Cobrar separadamente implica dupla remuneração pelo mesmo serviço.',
        n:['Decreto 62.724/68','RN ANEEL 414/2010 art. 5º','Lei 8.987/95']},
     ],
     c:[
-      {t:'Enriquecimento sem causa — restituição em dobro',f:'gold',
-       d:'Com base no art. 42 § único do CDC, o consumidor tem direito à devolução em dobro dos valores cobrados indevidamente, acrescidos de correção monetária e juros legais, desde que comprovada cobrança excessiva com má-fé da concessionária.',
+      {t:'Restituição em dobro (enriquecimento sem causa)',f:'gold',
+       d:'Art. 42 § único CDC: devolução em dobro dos valores cobrados indevidamente, acrescidos de correção e juros, comprovada cobrança com má-fé.',
        n:['CDC art. 42 § único','CC art. 884']},
-      {t:'Danos morais por cobrança indevida e restrição de serviço essencial',f:'gold',
-       d:'A cobrança indevida de tarifa não regulamentada, combinada com ameaça ou efetiva interrupção do fornecimento de energia elétrica, causa dano moral in re ipsa, prescindindo de prova do abalo.',
+      {t:'Danos morais por restrição de serviço essencial',f:'gold',
+       d:'Cobrança indevida combinada com interrupção do fornecimento de energia causa dano moral in re ipsa, independente de prova do abalo.',
        n:['CC art. 186','CC art. 927','Lei 8.987/95 art. 22']},
-      {t:'Prescrição quinquenal — delimitação do período recuperável',f:'orange',
-       d:'A pretensão de restituição de valores cobrados indevidamente prescreve em 5 anos (art. 27 CDC). A ação deve incluir pedido expresso de delimitação do período quinquenal para maximizar o valor recuperável. Atenção: verificar data de cada cobrança na fatura.',
+      {t:'Prescrição quinquenal — período recuperável',f:'orange',
+       d:'Pretensão de restituição prescreve em 5 anos (art. 27 CDC). Delimitação expressa do período quinquenal maximiza valor recuperável.',
        n:['CDC art. 27','CC art. 206 § 5º I']},
     ]
   },
-  generica:{
+  telecom:{
     p:[
-      {t:'Cobrança indevida sem contrato ou sem prestação do serviço',f:'green',
-       d:'A cobrança de valores sem contratação prévia ou sem efetiva prestação do serviço configura prática abusiva, vedada pelo art. 39 III do CDC. O consumidor não é obrigado a pagar por serviço que não solicitou ou não recebeu adequadamente.',
-       n:['CDC art. 39 III','CDC art. 51 IV','CC art. 884']},
-      {t:'Falha na prestação do serviço — vício de qualidade',f:'green',
-       d:'O defeito ou inadequação do serviço prestado gera dever de reparação. O fornecedor responde independentemente de culpa pelos danos causados aos consumidores por defeitos na prestação dos serviços (CDC art. 14).',
-       n:['CDC art. 14','CDC art. 20','CC art. 186']},
+      {t:'Cobrança por serviço não contratado ou não prestado',f:'green',
+       d:'Art. 39 III CDC: prática abusiva cobrar por serviço que o consumidor não solicitou ou não recebeu. Ônus da prova da prestação é da operadora.',
+       n:['CDC art. 39 III','CDC art. 51','ANATEL Res. 632/2014']},
+      {t:'Portabilidade — continuidade e qualidade do serviço',f:'green',
+       d:'A operadora tem obrigação de garantir qualidade mínima após portabilidade. Falha na prestação gera responsabilidade objetiva (CDC art. 14).',
+       n:['CDC art. 14','ANATEL Res. 460/2007','CDC art. 6º X']},
     ],
     c:[
-      {t:'Danos morais por constrangimento ou inscrição indevida',f:'gold',
-       d:'A inscrição indevida em cadastros de inadimplentes ou o constrangimento por cobranças abusivas geram dano moral in re ipsa, presumido independentemente de prova do efetivo abalo.',
-       n:['CC art. 186','CC art. 927','CDC art. 42']},
+      {t:'Danos morais por negativação indevida',f:'gold',
+       d:'Inscrição indevida em cadastros de inadimplentes gera dano moral in re ipsa, independente de prova do abalo efetivo.',
+       n:['CC art. 186','Súmula 385 STJ','CDC art. 42']},
+      {t:'Restituição em dobro de valores cobrados indevidamente',f:'gold',
+       d:'Art. 42 § único CDC: cobrança excessiva com má-fé da operadora gera direito à devolução em dobro.',
+       n:['CDC art. 42 § único','CC art. 884']},
+    ]
+  },
+  banco:{
+    p:[
+      {t:'Cobrança abusiva de tarifas e encargos',f:'green',
+       d:'Tarifas bancárias devem ser previamente informadas e pactuadas. Cobranças unilaterais ou superiores ao acordado violam CDC e normas do BACEN.',
+       n:['CDC art. 39 III','Res. CMN 3.919/10','CDC art. 51 IV']},
+      {t:'Inscrição indevida em cadastros de inadimplentes',f:'green',
+       d:'Negativação sem débito vencido ou após pagamento configura prática abusiva e gera dano moral presumido. Ônus da prova é do banco.',
+       n:['CDC art. 43','Súmula 385 STJ','CC art. 186']},
+    ],
+    c:[
       {t:'Inversão do ônus da prova',f:'gold',
-       d:'Nos termos do art. 6º VIII do CDC, é direito básico do consumidor a facilitação da defesa, inclusive com a inversão do ônus da prova, quando a alegação for verossímil ou o consumidor hipossuficiente.',
+       d:'Art. 6º VIII CDC: facilitação da defesa do consumidor, inclusive com inversão do ônus da prova quando a alegação for verossímil.',
+       n:['CDC art. 6º VIII','CPC art. 373 § 1º']},
+      {t:'Nulidade de cláusulas abusivas',f:'gold',
+       d:'Cláusulas que limitam direitos do consumidor, impliquem renúncia ou transferem responsabilidade são nulas de pleno direito.',
+       n:['CDC art. 51','CC art. 424','CDC art. 54']},
+    ]
+  },
+  agua:{
+    p:[
+      {t:'Interrupção indevida de serviço essencial',f:'green',
+       d:'Fornecimento de água é serviço essencial. Corte sem notificação prévia ou por débito controvertido viola Lei 8.987/95 e CDC.',
+       n:['Lei 8.987/95 art. 22','CDC art. 22','CDC art. 42']},
+      {t:'Cobrança por consumo não realizado',f:'green',
+       d:'Empresa deve comprovar leitura correta do hidrômetro. Em caso de erro de medição, ônus da prova é do fornecedor, não do consumidor.',
+       n:['CDC art. 14','CDC art. 39 III','CDC art. 6º VIII']},
+    ],
+    c:[
+      {t:'Danos morais por falta de fornecimento',f:'gold',
+       d:'Interrupção indevida de água causa transtorno extraordinário que supera mero aborrecimento, gerando dano moral indenizável.',
+       n:['CC art. 186','CC art. 927','CDC art. 22']},
+      {t:'Restituição em dobro de tarifa cobrada indevidamente',f:'gold',
+       d:'Art. 42 § único CDC aplicável nas cobranças sem respaldo de consumo real ou por serviço não prestado.',
+       n:['CDC art. 42 § único']},
+    ]
+  },
+  geral:{
+    p:[
+      {t:'Responsabilidade objetiva do fornecedor',f:'green',
+       d:'CDC art. 14: fornecedor responde independentemente de culpa pelos danos causados por defeitos na prestação de serviços.',
+       n:['CDC art. 14','CC art. 927','CDC art. 12']},
+      {t:'Cobrança indevida — prática abusiva',f:'green',
+       d:'Art. 39 III CDC: é prática abusiva enviar ao consumidor produto ou serviço sem solicitação prévia. Ônus da prova da prestação é do fornecedor.',
+       n:['CDC art. 39 III','CDC art. 51','CC art. 884']},
+    ],
+    c:[
+      {t:'Danos morais — quantum indenizatório',f:'gold',
+       d:'Valor deve considerar extensão do dano, condição econômica do réu e caráter pedagógico. Jurisprudência TJRJ: R$ 2.000–R$ 5.000 para casos de médio porte.',
+       n:['CC art. 944','CF art. 5º X']},
+      {t:'Inversão do ônus da prova',f:'gold',
+       d:'Art. 6º VIII CDC: direito básico do consumidor hipossuficiente técnico ou econômico.',
        n:['CDC art. 6º VIII','CPC art. 373 § 1º']},
     ]
   }
 };
 
-const FORCA = {green:'tag-green',gold:'tag-gold',orange:'tag-orange'};
-const FLBL  = {green:'Força alta',gold:'Força média',orange:'Atenção'};
+const FORCA={green:'tag-green',gold:'tag-gold',orange:'tag-orange'};
+const FLBL ={green:'Força alta',gold:'Força média',orange:'Atenção'};
 
-function rTeses(key) {
-  const db = TESES[key] || TESES['generica'];
-  function mkT(t,i,pfx) {
-    const id = `tese-${pfx}-${i}`;
-    const tc = FORCA[t.f]||'tag-gray', tl = FLBL[t.f]||t.f;
+function rTeses(setor, idP, idC) {
+  const db = TESES[setor] || TESES.geral;
+  const mk = (t,i,pfx) => {
+    const id=`tese-${pfx}-${i}`;
     return `<div class="tese-card" id="${id}">
-      <div class="tese-head" onclick="togTese('${id}')">
+      <div class="tese-head" onclick="document.getElementById('${id}').classList.toggle('open')">
         <div class="tese-head-left">
           <span class="tese-num">${i+1}.</span>
           <span class="tese-titulo">${t.t}</span>
         </div>
-        <span class="tag ${tc}" style="margin-left:.75rem;flex-shrink:0">${tl}</span>
+        <span class="tag ${FORCA[t.f]||'tag-gray'}" style="margin-left:.75rem;flex-shrink:0">${FLBL[t.f]||t.f}</span>
         <span class="tese-chevron">▼</span>
       </div>
       <div class="tese-body">
@@ -1090,96 +1343,71 @@ function rTeses(key) {
         <div class="tese-normas">${(t.n||[]).map(n=>`<span class="tese-norma">${n}</span>`).join('')}</div>
       </div>
     </div>`;
-  }
-  document.getElementById('teses-principais').innerHTML = db.p.map((t,i)=>mkT(t,i,'p')).join('');
-  const complW = document.getElementById('teses-compl-wrap');
-  if ((db.c||[]).length) {
-    document.getElementById('teses-complementares').innerHTML = db.c.map((t,i)=>mkT(t,i+db.p.length,'c')).join('');
-    complW.classList.remove('hidden');
-  } else { complW.classList.add('hidden'); }
+  };
+  document.getElementById(idP).innerHTML = db.p.map((t,i)=>mk(t,i,'p')).join('');
+  document.getElementById(idC).innerHTML = db.c.map((t,i)=>mk(t,i+db.p.length,'c')).join('');
 }
 
-function togTese(id) { document.getElementById(id).classList.toggle('open'); }
-
-/* ================================================================
-   EXPORT CSV
-   ================================================================ */
-function exportCSV() {
-  if (!curData) return;
-  const {porAno,empresa,tribunal,anoInicio,anoFim} = curData;
-  const tot = porAno.reduce((s,d)=>s+d.count,0);
-  const out = curData.outcomes||{};
-  const p=out.procedente||0,pp=out.procedente_parcial||0,im=out.improcedente||0;
-  const isFrac=(p+pp+im)<=1.05;
-  const cv=isFrac?tot:1;
-  const rows = porAno.map(row=>{
-    const fr=tot>0?row.count/tot:0;
-    return [row.ano,row.count,Math.round(p*cv*fr),Math.round(im*cv*fr),Math.round(pp*cv*fr)].join(',');
-  });
-  const csv = `Empresa,${empresa}\nTribunal,${tribunal}\nPeríodo,${anoInicio}-${anoFim}\n\nAno,Total,Procedente(est.),Improcedente(est.),ProcParcial(est.)\n${rows.join('\n')}`;
-  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`laadv_jusdata_${empresa.replace(/\s+/g,'_')}_${tribunal}_${anoInicio}-${anoFim}.csv`;
-  a.click(); URL.revokeObjectURL(a.href);
-  dlog('INFO','CSV: '+a.download);
+// ── EXPORT CSV ───────────────────────────────────────────────────
+function exportCSV1() {
+  if (!curData1) return;
+  const d = curData1;
+  const rows = (d.porAno||[]).map(r=>[r.ano,r.count].join(','));
+  const csv = `Setor,${selEmp.label}\nTribunal,TJRJ\nPeríodo,${d.anoInicio}-${d.anoFim}\nTotal,${d.total}\n\nAno,Ações\n${rows.join('\n')}`;
+  _downloadCSV(csv, `laadv_${selEmp.label}_TJRJ_${d.anoInicio}-${d.anoFim}.csv`);
+}
+function exportCSV2() {
+  if (!curData2f) return;
+  const d = curData2f;
+  const header = 'Número,Tribunal,Grau,Classe,Comarca,Data Ajuizamento,Resultado,Assuntos';
+  const rows = (d.processos||[]).map(p=>[
+    `"${p.numero}"`,p.tribunal,p.grau,`"${p.classe}"`,`"${p.comarca}"`,
+    p.dataAjuizamento,`"${p.resultado}"`,`"${(p.assuntos||[]).map(a=>a.nome).join('; ')}"`
+  ].join(','));
+  const csv = `Tribunal,${d.tribunal}\nPeríodo,${d.anoInicio}-${d.anoFim}\nTotal,${d.total}\n\n${header}\n${rows.join('\n')}`;
+  _downloadCSV(csv, `laadv_filtros_${d.tribunal}_${d.anoInicio}-${d.anoFim}.csv`);
+}
+function _downloadCSV(csv, fname) {
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click(); URL.revokeObjectURL(a.href);
 }
 
-/* ================================================================
-   UI
-   ================================================================ */
-function qs(e,t,c) { document.getElementById('empresa-input').value=e; document.getElementById('f-tribunal').value=t; if(c&&document.getElementById('f-categoria'))document.getElementById('f-categoria').value=c; buscar(); }
-function limpar() { document.getElementById('empresa-input').value=''; document.getElementById('results-section').classList.add('hidden'); [cT,cO,cC].forEach(c=>{if(c)c.destroy();}); cT=cO=cC=null; curData=null; document.getElementById('btn-export').disabled=true; }
-function abrirConfig() { document.getElementById('cfg-gas-url').value=CFG.gasUrl||''; document.getElementById('cfg-api-key').value=CFG.apiKey||''; document.getElementById('cfg-sheet-id').value=CFG.sheetId||''; openModal('config-modal'); }
+// ── UI HELPERS ───────────────────────────────────────────────────
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-function showLoad(l,s)  { document.getElementById('loading-overlay').classList.add('active'); setLoad(l,s); }
-function setLoad(l,s)   { document.getElementById('loading-label').textContent=l; document.getElementById('loading-sub').textContent=s; }
-function hideLoad()     { document.getElementById('loading-overlay').classList.remove('active'); }
-
-function animN(id,target) {
+function showLoad(l,s)  { document.getElementById('loading').classList.add('active'); document.getElementById('load-label').textContent=l; document.getElementById('load-sub').textContent=s||''; }
+function hideLoad()     { document.getElementById('loading').classList.remove('active'); }
+function animN(id,tgt)  {
   const el=document.getElementById(id); const dur=600; const t0=performance.now();
-  const fn=t=>{const pr=Math.min((t-t0)/dur,1),e=1-Math.pow(1-pr,3);el.textContent=Math.round(target*e).toLocaleString('pt-BR');if(pr<1)requestAnimationFrame(fn);};
+  const fn=t=>{const pr=Math.min((t-t0)/dur,1),e=1-Math.pow(1-pr,3);el.textContent=Math.round(tgt*e).toLocaleString('pt-BR');if(pr<1)requestAnimationFrame(fn);};
   requestAnimationFrame(fn);
 }
 
-/* ── DEV ── */
-function toggleDevPanel() { document.getElementById('dev-panel').classList.toggle('active'); }
+// ── DEV ─────────────────────────────────────────────────────────
+function toggleDev() { document.getElementById('dev-panel').classList.toggle('active'); }
 function dlog(lv,msg) {
   const b=document.getElementById('dev-log'); const l=document.createElement('div'); l.className='log-line';
   l.innerHTML=`<span class="log-ts">${new Date().toLocaleTimeString('pt-BR')}</span><span class="log-lv ${lv}">${lv}</span><span class="log-msg">${msg}</span>`;
   b.appendChild(l); b.scrollTop=b.scrollHeight;
 }
-function swTab(tab,btn) {
+function swDevTab(tab,btn) {
   document.querySelectorAll('.dev-tab').forEach(b=>b.classList.remove('active')); if(btn)btn.classList.add('active');
-  ['dev-log','dev-changelog','dev-config','dev-response'].forEach(id=>document.getElementById(id).classList.add('hidden'));
-  const m={log:'dev-log',changelog:'dev-changelog',config:'dev-config',response:'dev-response'};
-  document.getElementById(m[tab]).classList.remove('hidden');
-  if(tab==='changelog') document.getElementById('dev-changelog').textContent=CHANGELOG;
-  if(tab==='config') document.getElementById('dev-config').textContent=JSON.stringify({ver:VER,cfg:{...CFG,apiKey:CFG.apiKey?'***':''},errs:ERR_LOG},null,2);
-  if(tab==='response') document.getElementById('dev-response').textContent=lastResp?JSON.stringify(lastResp,null,2):'(nenhuma resposta ainda)';
+  document.getElementById('dev-log').classList.toggle('hidden',tab!=='log');
+  document.getElementById('dev-resp').classList.toggle('hidden',tab!=='resp');
 }
 
-/* ── YEARS ── */
-function initYears() {
-  const cur=new Date().getFullYear(); const si=document.getElementById('f-ano-i'); const sf=document.getElementById('f-ano-f');
-  for(let y=cur;y>=2015;y--){si.appendChild(new Option(y,y,y===2019,y===2019));sf.appendChild(new Option(y,y,y===cur,y===cur));}
-}
-
-/* ── KEYBOARD ── */
+// ── KEYBOARD ─────────────────────────────────────────────────────
 document.addEventListener('keydown',e=>{
-  if(e.ctrlKey&&e.shiftKey&&e.key==='D'){e.preventDefault();toggleDevPanel();}
-  if(e.key==='Escape'){closeModal('config-modal');if(document.getElementById('dev-panel').classList.contains('active'))toggleDevPanel();}
+  if(e.ctrlKey&&e.shiftKey&&e.key==='D'){e.preventDefault();toggleDev();}
+  if(e.key==='Escape'){closeModal('cfg-modal');if(document.getElementById('dev-panel').classList.contains('active'))toggleDev();}
 });
 
-/* ── INIT ── */
-(function(){
-  document.getElementById('app-ver').textContent=VER;
-  initYears(); loadCfg();
-  dlog('INIT',`LAADV JusData Analytics v${VER} — ${new Date().toLocaleString('pt-BR')}`);
-  dlog('INFO','Ctrl+Shift+D = Dev Console · Chips disponíveis na hero');
-
-
+// ── INIT ─────────────────────────────────────────────────────────
+(function init(){
+  initYears();
+  loadCfg();
+  dlog('INIT',`LAADV JusData Analytics v2.0 — ${new Date().toLocaleString('pt-BR')}`);
+  dlog('INFO','Tab 1: Relatório por empresa · Tab 2: Busca DataJud');
 })();
 </script>
 </body>
