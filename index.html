@@ -804,7 +804,10 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
               <tbody id="tb2-processos"></tbody>
             </table>
           </div>
-          <div class="table-note">Salvos automaticamente na aba "Processos" do Google Sheets.</div>
+          <div class="table-note">
+            Salvos na aba "Processos" do Sheets. · 
+            <strong>Assuntos:</strong> em teal = assunto que bateu com o filtro · cinza = assuntos secundários do processo (um processo pode ter múltiplos assuntos).
+          </div>
         </div>
       </div>
 
@@ -843,6 +846,21 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 
 <script>
 "use strict";
+
+// ── DATA FORMATTER ──────────────────────────────────────────────
+function fmtData(d) {
+  if (!d) return '—';
+  const s = String(d);
+  // Formato ISO: 2025-04-30T15:16:44.000Z
+  if (s.includes('T') || s.includes('-')) {
+    const dt = new Date(s);
+    if (!isNaN(dt)) return dt.toLocaleDateString('pt-BR');
+  }
+  // Formato YYYYMMDDHHmmss
+  const m = s.match(/^(\d{4})(\d{2})(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return s;
+}
 
 // ── IBGE → COMARCA ──────────────────────────────────────────────
 const IBGE = {
@@ -1003,7 +1021,8 @@ function renderRelatorio1(d) {
   animN('k1-media', d.media||0);
   document.getElementById('k1-proc').textContent  = pct !== '—' ? pct+'%' : '—';
   document.getElementById('k1-total').textContent = d.total.toLocaleString('pt-BR');
-  document.getElementById('k1-dec').textContent   = dec.toLocaleString('pt-BR');
+  const decReal = Math.min(dec, d.total);
+  document.getElementById('k1-dec').textContent   = decReal.toLocaleString('pt-BR');
   document.getElementById('k1-media-sub').textContent = `${d.anoInicio}–${d.anoFim} · TJRJ`;
   document.getElementById('k1-total-sub').textContent = `${d.anoInicio}–${d.anoFim}`;
 
@@ -1032,7 +1051,9 @@ function renderRelatorio1(d) {
 }
 
 function rChartTrend1(porAno) {
-  const ctx = document.getElementById('ch1-trend').getContext('2d');
+  const el = document.getElementById('ch1-trend');
+  if (!el) return;
+  const ctx = el.getContext('2d');
   if (cT1) { cT1.destroy(); cT1=null; }
   if (!porAno.length) return;
   cT1 = new Chart(ctx, {
@@ -1055,7 +1076,9 @@ function rChartTrend1(porAno) {
 }
 
 function rChartOut1(out, total) {
-  const ctx = document.getElementById('ch1-out').getContext('2d');
+  const el = document.getElementById('ch1-out');
+  if (!el) return;
+  const ctx = el.getContext('2d');
   if (cO1) { cO1.destroy(); cO1=null; }
   const p=out.procedente||0, pp=out.procedente_parcial||0;
   const im=out.improcedente||0, ex=out.extincao||0, ac=out.acordo||0;
@@ -1079,7 +1102,9 @@ function rChartOut1(out, total) {
 }
 
 function rChartGrau1(porGrau) {
-  const ctx = document.getElementById('ch1-grau').getContext('2d');
+  const el = document.getElementById('ch1-grau');
+  if (!el) return;
+  const ctx = el.getContext('2d');
   if (cG1) { cG1.destroy(); cG1=null; }
   if (!porGrau.length) return;
   const colors = {'JE':'rgba(11,74,68,.75)','G1':'rgba(201,169,62,.8)','G2':'rgba(26,75,140,.75)'};
@@ -1102,7 +1127,9 @@ function rChartGrau1(porGrau) {
 }
 
 function rChartComarca1(porComarca) {
-  const ctx = document.getElementById('ch1-comarca').getContext('2d');
+  const el = document.getElementById('ch1-comarca');
+  if (!el) return;
+  const ctx = el.getContext('2d');
   if (cC1) { cC1.destroy(); cC1=null; }
   if (!porComarca.length) return;
   const top = porComarca.slice(0,7);
@@ -1138,7 +1165,7 @@ function rTableProcessos1(procs) {
   tb.innerHTML = procs.map(p=>{
     const res = p.resultado||'—';
     const resCls = res==='Procedente'?'tag-green':res==='Improcedente'?'tag-red':res.includes('Parcial')?'tag-gold':res==='Acordo'?'tag-blue':'tag-gray';
-    const dt = p.dataAjuizamento ? String(p.dataAjuizamento).replace(/(\d{4})(\d{2})(\d{2}).*/,'$3/$2/$1') : '—';
+    const dt = fmtData(p.dataAjuizamento);
     return `<tr>
       <td class="td-s" style="font-size:.72rem;font-family:monospace">${p.numero||'—'}</td>
       <td><span class="tag tag-teal">${p.grau||'—'}</span></td>
@@ -1176,7 +1203,7 @@ function renderProcesso(r) {
   el.innerHTML = r.processos.map(p=>{
     const res = p.resultado||'—';
     const resCls = res==='Procedente'?'tag-green':res==='Improcedente'?'tag-red':res.includes('Parcial')?'tag-gold':res==='Acordo'?'tag-blue':'tag-gray';
-    const dt = p.dataAjuizamento ? String(p.dataAjuizamento).replace(/(\d{4})(\d{2})(\d{2}).*/,'$3/$2/$1') : '—';
+    const dt = fmtData(p.dataAjuizamento);
     const assuntos = (p.assuntos||[]).map(a=>`<span class="tese-norma">${a.codigo} — ${a.nome}</span>`).join('');
     return `<div class="proc-card">
       <div class="proc-numero">${p.numero}</div>
@@ -1254,15 +1281,21 @@ function renderFiltros(r) {
     tb.innerHTML = r.processos.map(p=>{
       const res=p.resultado||'—';
       const resCls=res==='Procedente'?'tag-green':res==='Improcedente'?'tag-red':res.includes('Parcial')?'tag-gold':res==='Acordo'?'tag-blue':'tag-gray';
-      const dt=p.dataAjuizamento?String(p.dataAjuizamento).replace(/(\d{4})(\d{2})(\d{2}).*/,'$3/$2/$1'):'—';
-      const ass=(p.assuntos||[]).map(a=>a.nome).join(', ')||'—';
+      const dt = fmtData(p.dataAjuizamento);
+      const filtAssunto = document.getElementById('t2-assunto').value;
+      const assHTML = (p.assuntos||[]).map(a => {
+        const matched = filtAssunto && String(a.codigo) === String(filtAssunto);
+        return matched
+          ? `<span class="tag tag-teal" style="font-size:.6rem" title="Assunto filtrado">${a.nome}</span>`
+          : `<span style="font-size:.68rem;color:var(--gray-mid)">${a.nome}</span>`;
+      }).join(' ') || '—';
       return `<tr>
         <td class="td-s" style="font-size:.72rem;font-family:monospace">${p.numero}</td>
         <td><span class="tag tag-teal">${p.grau}</span></td>
-        <td>${p.classe}</td>
-        <td>${p.comarca}</td>
-        <td>${dt}</td>
-        <td style="font-size:.72rem;max-width:180px;white-space:normal">${ass}</td>
+        <td style="font-size:.75rem">${p.classe}</td>
+        <td style="font-size:.75rem">${p.comarca}</td>
+        <td style="font-size:.75rem">${dt}</td>
+        <td style="max-width:200px;white-space:normal;line-height:1.8">${assHTML}</td>
         <td><span class="tag ${resCls}">${res}</span></td>
       </tr>`;
     }).join('');
