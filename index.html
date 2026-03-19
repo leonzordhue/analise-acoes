@@ -594,6 +594,25 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
         </div>
       </div>
 
+      <!-- Tabela comarcas -->
+      <div class="card" id="r1-comarca-card" style="margin-bottom:1.25rem">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Top Comarcas por Volume de Ações</div>
+            <div class="card-sub">TJRJ · ordenado por volume</div>
+          </div>
+          <span class="tag tag-teal" id="r1-tag-periodo">—</span>
+        </div>
+        <div class="card-body-tight">
+          <div class="result-table-wrap">
+            <table class="result-table">
+              <thead><tr><th>COMARCA</th><th>AÇÕES</th><th>% DO TOTAL</th></tr></thead>
+              <tbody id="tb1-comarcas"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- Teses -->
       <div class="card">
         <div class="card-head">
@@ -824,6 +843,32 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 
 <script>
 "use strict";
+
+// ── IBGE → COMARCA ──────────────────────────────────────────────
+const IBGE = {
+  3304557:'Capital / Rio de Janeiro',
+  3303500:'Petrópolis',
+  3303302:'Nova Iguaçu',
+  3301702:'Duque de Caxias',
+  3304904:'São Gonçalo',
+  3305109:'São João de Meriti',
+  3302502:'Itaboraí',
+  3302700:'Macaé',
+  3300704:'Campos dos Goytacazes',
+  3306305:'Volta Redonda',
+  3300100:'Angra dos Reis',
+  3300456:'Belford Roxo',
+  3303203:'Nilópolis',
+  3301009:'Cabo Frio',
+  3303906:'Niterói',
+  3302205:'Itaperuna',
+  3300258:'Araruama',
+  3301850:'Resende',
+  3304300:'Rio Bonito',
+  3305703:'Teresópolis',
+};
+function ibgeNome(code) { return IBGE[code] || `Comarca ${code}`; }
+
 const GAS_URL  = 'https://script.google.com/macros/s/AKfycbzifAehNzlgStKxWRW6vQOn9mWV0otCKjT7gu7QSzcZkrw9AZ4r8Nz1C3FpLJlS_pEf5Q/exec';
 const API_KEY  = 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
 const SHEET_ID = '1v2UI_OSF6r_WEfTc51SDAdY8uTZqIcARxNHGhIZROys';
@@ -836,7 +881,7 @@ let curData1   = null; // dados relatório 1
 let curData2f  = null; // dados filtros
 let curPag2    = 1;
 
-let cT1=null, cO1=null, cG1=null;
+let cT1=null, cO1=null, cG1=null, cC1=null;
 
 // ── CONFIG ──────────────────────────────────────────────────────
 function loadCfg() {
@@ -976,7 +1021,10 @@ function renderRelatorio1(d) {
   rChartTrend1(d.porAno||[]);
   rChartOut1(out, d.total);
   rChartGrau1(d.porGrau||[]);
+  rChartComarca1(d.porComarca||[]);
   rTableProcessos1(d.processos||[]);
+  rTableComarcas1(d.porComarca||[], d.total);
+  document.getElementById('r1-tag-periodo').textContent = `${d.anoInicio}–${d.anoFim}`;
   rTeses(selEmp.setor, 'r1-teses-p', 'r1-teses-c');
   document.getElementById('r1-teses-sub').textContent = `Setor: ${selEmp.setor} · Empresa: ${selEmp.label}`;
 
@@ -1048,6 +1096,34 @@ function rChartGrau1(porGrau) {
       scales:{
         x:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#8899AA',font:{family:'DM Sans',size:11},callback:v=>v.toLocaleString('pt-BR')}},
         y:{grid:{display:false},ticks:{color:'#3D4F63',font:{family:'DM Sans',size:13,weight:'600'}}}
+      }
+    }
+  });
+}
+
+function rChartComarca1(porComarca) {
+  const ctx = document.getElementById('ch1-comarca').getContext('2d');
+  if (cC1) { cC1.destroy(); cC1=null; }
+  if (!porComarca.length) return;
+  const top = porComarca.slice(0,7);
+  cC1 = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: top.map(d=>ibgeNome(d.ibge)),
+      datasets:[{
+        data: top.map(d=>d.count),
+        backgroundColor: top.map((_,i)=>i===0?'rgba(11,74,68,.85)':'rgba(201,169,62,.65)'),
+        borderColor: top.map((_,i)=>i===0?'#0B4A44':'#C9A93E'),
+        borderWidth:1, borderRadius:3,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, indexAxis:'y',
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#0B4A44',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',
+        callbacks:{label:c=>` ${c.parsed.x.toLocaleString('pt-BR')} ações`}}},
+      scales:{
+        x:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#8899AA',font:{family:'DM Sans',size:11},callback:v=>v.toLocaleString('pt-BR')}},
+        y:{grid:{display:false},ticks:{color:'#3D4F63',font:{family:'DM Sans',size:12},padding:6}}
       }
     }
   });
@@ -1346,6 +1422,27 @@ function rTeses(setor, idP, idC) {
   };
   document.getElementById(idP).innerHTML = db.p.map((t,i)=>mk(t,i,'p')).join('');
   document.getElementById(idC).innerHTML = db.c.map((t,i)=>mk(t,i+db.p.length,'c')).join('');
+}
+
+function rTableComarcas1(porComarca, total) {
+  const tb = document.getElementById('tb1-comarcas');
+  if (!porComarca.length) { tb.innerHTML='<tr><td colspan="3" style="text-align:center;padding:1rem;color:var(--gray-mid)">Sem dados</td></tr>'; return; }
+  tb.innerHTML = porComarca.slice(0,10).map(c=>{
+    const pct = total>0 ? ((c.count/total)*100).toFixed(1) : '—';
+    const bar = Math.min(100, total>0?(c.count/porComarca[0].count)*100:0);
+    return `<tr>
+      <td class="td-s">${ibgeNome(c.ibge)}</td>
+      <td>${c.count.toLocaleString('pt-BR')}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div style="flex:1;height:6px;background:var(--gray-light);border-radius:3px;max-width:120px">
+            <div style="height:100%;width:${bar}%;background:var(--teal);border-radius:3px"></div>
+          </div>
+          <span style="font-size:.72rem;font-weight:700;color:var(--text-mid)">${pct}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
 }
 
 // ── EXPORT CSV ───────────────────────────────────────────────────
