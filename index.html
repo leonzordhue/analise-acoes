@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <!--
 ╔══════════════════════════════════════════════════════════════╗
-║  LAADV — JusData Analytics v2.0                              ║
+║  LAADV — JusData Analytics v2.3                              ║
 ║  Luís Albert Advocacia | GitHub Pages Ready                  ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  [v2.0.0] 2026-03-19                                         ║
@@ -342,7 +342,7 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 <div class="topbar">
   <span class="topbar-l">Luís Albert Advocacia — Plataforma Administrativa</span>
   <span class="topbar-r">
-    <span class="topbar-dot"></span>JusData Analytics v2.0
+    <span class="topbar-dot"></span>JusData Analytics v2.3
     <button class="devbtn" onclick="toggleDev()">DEV</button>
   </span>
 </div>
@@ -532,6 +532,24 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
         </div>
       </div>
 
+      <!-- KPI Score row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-bottom:1.25rem" id="kpi-score-row">
+        <div class="kpi-card" style="--kc:var(--gold);background:linear-gradient(135deg,#0B4A44 0%,#145E58 100%);border-color:var(--teal)">
+          <div class="kpi-label" style="color:rgba(255,255,255,.6)">LAADV Score™</div>
+          <div style="display:flex;align-items:flex-end;gap:.5rem">
+            <div class="kpi-val" id="k1-score" style="color:#fff;font-size:2.8rem">—</div>
+            <div style="font-size:.75rem;color:rgba(255,255,255,.5);margin-bottom:.4rem">/100</div>
+          </div>
+          <div class="kpi-sub" id="k1-score-sub" style="color:rgba(255,255,255,.55)">potencial jurídico</div>
+        </div>
+        <div class="kpi-card" id="k1-rec-card" style="--kc:var(--gold-brd)">
+          <div class="kpi-label">Recomendação Estratégica</div>
+          <div style="font-size:1rem;font-weight:800;margin:.3rem 0;line-height:1.2" id="k1-rec-label">—</div>
+          <div style="font-size:.78rem;font-weight:600;color:var(--text-mid)" id="k1-rec-acao">—</div>
+          <div style="font-size:.68rem;color:var(--gray-mid);margin-top:.3rem;line-height:1.5" id="k1-rec-obs">—</div>
+        </div>
+      </div>
+
       <!-- Charts -->
       <div class="charts-row">
         <div class="chart-card">
@@ -613,6 +631,50 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
         </div>
       </div>
 
+      <!-- Simulador Estratégico -->
+      <div class="card" id="r1-sim-card">
+        <div class="card-head" style="background:linear-gradient(to right,#162030,#1e2d40)">
+          <div>
+            <div class="card-title">⚖ Simulação Estratégica — Vale a pena ajuizar?</div>
+            <div class="card-sub">Baseado em dados reais do DataJud · modelo probabilístico ponderado</div>
+          </div>
+          <span class="tag" id="r1-sim-tag" style="flex-shrink:0">—</span>
+        </div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.25rem">
+            <div>
+              <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-mid);margin-bottom:.3rem">Probabilidade ponderada</div>
+              <div style="font-family:var(--font-serif);font-size:1.8rem;font-weight:700;color:var(--teal)" id="sim-prob">—</div>
+              <div style="font-size:.65rem;color:var(--gray-mid)">por recência e grau</div>
+            </div>
+            <div>
+              <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-mid);margin-bottom:.3rem">Faixa de condenação est.</div>
+              <div style="font-family:var(--font-serif);font-size:1.5rem;font-weight:700;color:var(--gold-dark)" id="sim-valor">—</div>
+              <div style="font-size:.65rem;color:var(--gray-mid)">danos morais + restituição</div>
+            </div>
+            <div>
+              <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-mid);margin-bottom:.3rem">Índice de decisão</div>
+              <div style="font-family:var(--font-serif);font-size:1.8rem;font-weight:700;color:var(--blue)" id="sim-idx">—</div>
+              <div style="font-size:.65rem;color:var(--gray-mid)">0 = desfav. · 1 = favorável</div>
+            </div>
+            <div>
+              <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-mid);margin-bottom:.3rem">Base de cálculo</div>
+              <div style="font-family:var(--font-serif);font-size:1.8rem;font-weight:700;color:var(--text)" id="sim-base">—</div>
+              <div style="font-size:.65rem;color:var(--gray-mid)">processos analisados</div>
+            </div>
+          </div>
+          <div style="background:var(--teal-bg);border:1.5px solid var(--teal-brd);border-radius:9px;padding:1rem 1.2rem" id="sim-obs-box">
+            <div style="font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin-bottom:.35rem">📋 Observação técnica</div>
+            <div style="font-size:.82rem;color:var(--text-mid);line-height:1.65" id="sim-obs">—</div>
+          </div>
+          <div style="margin-top:.75rem;font-size:.65rem;color:var(--gray-mid)">
+            ⚠ Modelo probabilístico baseado em histórico setorial real do DataJud/CNJ. 
+            Não substitui análise jurídica individualizada do caso concreto. 
+            Probabilidade ponderada por recência (peso maior para processos dos últimos 2 anos) e grau (JE &gt; G1 &gt; G2).
+          </div>
+        </div>
+      </div>
+
       <!-- Teses -->
       <div class="card">
         <div class="card-head">
@@ -645,7 +707,7 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 
     <!-- 2A: Por número -->
     <div class="sec-title">Buscar processo por número</div>
-    <div class="sec-sub">Informe o número no formato CNJ (ex: 0800770-06.2026.8.19.0046) e o tribunal.</div>
+    <div class="sec-sub">Informe o número no formato CNJ (ex: 0800770-06.2026.8.19.0046) e o tribunal. · <strong style="color:var(--teal)">Nota:</strong> A API DataJud não retorna nome das partes — disponível via Escavador API.</div>
 
     <div class="card">
       <div class="card-body">
@@ -658,10 +720,55 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
           <div class="field">
             <label class="field-label">Tribunal</label>
             <select id="t2-tribunal">
-              <option value="TJRJ">TJRJ</option><option value="TJSP">TJSP</option>
-              <option value="TJMG">TJMG</option><option value="TJRS">TJRS</option>
-              <option value="TJBA">TJBA</option><option value="TJPR">TJPR</option>
-              <option value="TJAM">TJAM</option><option value="TJES">TJES</option>
+              <option value="TJRJ">TJRJ — Rio de Janeiro</option>
+              <option value="TJSP">TJSP — São Paulo</option>
+              <option value="TJMG">TJMG — Minas Gerais</option>
+              <option value="TJRS">TJRS — Rio Grande do Sul</option>
+              <option value="TJBA">TJBA — Bahia</option>
+              <option value="TJPR">TJPR — Paraná</option>
+              <option value="TJPE">TJPE — Pernambuco</option>
+              <option value="TJSC">TJSC — Santa Catarina</option>
+              <option value="TJAM">TJAM — Amazonas</option>
+              <option value="TJGO">TJGO — Goiás</option>
+              <option value="TJCE">TJCE — Ceará</option>
+              <option value="TJPB">TJPB — Paraíba</option>
+              <option value="TJRN">TJRN — Rio Grande do Norte</option>
+              <option value="TJPA">TJPA — Pará</option>
+              <option value="TJAL">TJAL — Alagoas</option>
+              <option value="TJSE">TJSE — Sergipe</option>
+              <option value="TJPI">TJPI — Piauí</option>
+              <option value="TJMA">TJMA — Maranhão</option>
+              <option value="TJMT">TJMT — Mato Grosso</option>
+              <option value="TJMS">TJMS — Mato Grosso do Sul</option>
+              <option value="TJTO">TJTO — Tocantins</option>
+              <option value="TJRO">TJRO — Rondônia</option>
+              <option value="TJAC">TJAC — Acre</option>
+              <option value="TJAP">TJAP — Amapá</option>
+              <option value="TJRR">TJRR — Roraima</option>
+              <option value="TJDFT">TJDFT — Distrito Federal</option>
+              <option value="TJES">TJES — Espírito Santo</option>
+              <optgroup label="Justiça Federal">
+              <option value="TRF1">TRF1 — 1ª Região (AM,PA,MA,PI,BA,GO,MG,MT,DF...)</option>
+              <option value="TRF2">TRF2 — 2ª Região (RJ, ES)</option>
+              <option value="TRF3">TRF3 — 3ª Região (SP, MS)</option>
+              <option value="TRF4">TRF4 — 4ª Região (PR, SC, RS)</option>
+              <option value="TRF5">TRF5 — 5ª Região (AL,CE,PB,PE,RN,SE)</option>
+              <option value="TRF6">TRF6 — 6ª Região (MG)</option>
+              </optgroup>
+              <optgroup label="Justiça do Trabalho">
+              <option value="TRT1">TRT1 — 1ª Região (RJ)</option>
+              <option value="TRT2">TRT2 — 2ª Região (SP Grande)</option>
+              <option value="TRT3">TRT3 — 3ª Região (MG)</option>
+              <option value="TRT4">TRT4 — 4ª Região (RS)</option>
+              <option value="TRT5">TRT5 — 5ª Região (BA)</option>
+              <option value="TRT11">TRT11 — 11ª Região (AM, RR)</option>
+              <option value="TRT14">TRT14 — 14ª Região (RO, AC)</option>
+              <option value="TRT15">TRT15 — 15ª Região (SP Interior)</option>
+              </optgroup>
+              <optgroup label="Tribunais Superiores">
+              <option value="STJ">STJ — Superior Tribunal de Justiça</option>
+              <option value="TST">TST — Superior Tribunal do Trabalho</option>
+              </optgroup>
             </select>
           </div>
         </div>
@@ -689,9 +796,55 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
           <div class="field">
             <label class="field-label">Tribunal</label>
             <select id="t2-ftribunal">
-              <option value="TJRJ">TJRJ</option><option value="TJSP">TJSP</option>
-              <option value="TJMG">TJMG</option><option value="TJRS">TJRS</option>
-              <option value="TJBA">TJBA</option><option value="TJAM">TJAM</option>
+              <option value="TJRJ">TJRJ — Rio de Janeiro</option>
+              <option value="TJSP">TJSP — São Paulo</option>
+              <option value="TJMG">TJMG — Minas Gerais</option>
+              <option value="TJRS">TJRS — Rio Grande do Sul</option>
+              <option value="TJBA">TJBA — Bahia</option>
+              <option value="TJPR">TJPR — Paraná</option>
+              <option value="TJPE">TJPE — Pernambuco</option>
+              <option value="TJSC">TJSC — Santa Catarina</option>
+              <option value="TJAM">TJAM — Amazonas</option>
+              <option value="TJGO">TJGO — Goiás</option>
+              <option value="TJCE">TJCE — Ceará</option>
+              <option value="TJPB">TJPB — Paraíba</option>
+              <option value="TJRN">TJRN — Rio Grande do Norte</option>
+              <option value="TJPA">TJPA — Pará</option>
+              <option value="TJAL">TJAL — Alagoas</option>
+              <option value="TJSE">TJSE — Sergipe</option>
+              <option value="TJPI">TJPI — Piauí</option>
+              <option value="TJMA">TJMA — Maranhão</option>
+              <option value="TJMT">TJMT — Mato Grosso</option>
+              <option value="TJMS">TJMS — Mato Grosso do Sul</option>
+              <option value="TJTO">TJTO — Tocantins</option>
+              <option value="TJRO">TJRO — Rondônia</option>
+              <option value="TJAC">TJAC — Acre</option>
+              <option value="TJAP">TJAP — Amapá</option>
+              <option value="TJRR">TJRR — Roraima</option>
+              <option value="TJDFT">TJDFT — Distrito Federal</option>
+              <option value="TJES">TJES — Espírito Santo</option>
+              <optgroup label="Justiça Federal">
+              <option value="TRF1">TRF1 — 1ª Região (AM,PA,MA,PI,BA,GO,MG,MT,DF...)</option>
+              <option value="TRF2">TRF2 — 2ª Região (RJ, ES)</option>
+              <option value="TRF3">TRF3 — 3ª Região (SP, MS)</option>
+              <option value="TRF4">TRF4 — 4ª Região (PR, SC, RS)</option>
+              <option value="TRF5">TRF5 — 5ª Região (AL,CE,PB,PE,RN,SE)</option>
+              <option value="TRF6">TRF6 — 6ª Região (MG)</option>
+              </optgroup>
+              <optgroup label="Justiça do Trabalho">
+              <option value="TRT1">TRT1 — 1ª Região (RJ)</option>
+              <option value="TRT2">TRT2 — 2ª Região (SP Grande)</option>
+              <option value="TRT3">TRT3 — 3ª Região (MG)</option>
+              <option value="TRT4">TRT4 — 4ª Região (RS)</option>
+              <option value="TRT5">TRT5 — 5ª Região (BA)</option>
+              <option value="TRT11">TRT11 — 11ª Região (AM, RR)</option>
+              <option value="TRT14">TRT14 — 14ª Região (RO, AC)</option>
+              <option value="TRT15">TRT15 — 15ª Região (SP Interior)</option>
+              </optgroup>
+              <optgroup label="Tribunais Superiores">
+              <option value="STJ">STJ — Superior Tribunal de Justiça</option>
+              <option value="TST">TST — Superior Tribunal do Trabalho</option>
+              </optgroup>
             </select>
           </div>
           <div class="field">
@@ -827,7 +980,7 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
       </div>
       <div class="footer-nome">Luís Albert Advocacia</div>
     </div>
-    <div class="footer-copy">LAADV — JusData Analytics v2.0 · CNJ DataJud<br>Manaus – AM</div>
+    <div class="footer-copy">LAADV — JusData Analytics v2.3 · CNJ DataJud<br>Manaus – AM</div>
   </div>
 </footer>
 
@@ -1043,6 +1196,7 @@ function renderRelatorio1(d) {
   rChartComarca1(d.porComarca||[]);
   rTableProcessos1(d.processos||[]);
   rTableComarcas1(d.porComarca||[], d.total);
+  if (d.analytics) rAnalytics1(d.analytics);
   document.getElementById('r1-tag-periodo').textContent = `${d.anoInicio}–${d.anoFim}`;
   rTeses(selEmp.setor, 'r1-teses-p', 'r1-teses-c');
   document.getElementById('r1-teses-sub').textContent = `Setor: ${selEmp.setor} · Empresa: ${selEmp.label}`;
@@ -1478,6 +1632,101 @@ function rTableComarcas1(porComarca, total) {
   }).join('');
 }
 
+// ── ANALYTICS — LAADV SCORE + SIMULADOR ──────────────────────────
+const SCORE_CORES = {
+  success: { bg:'#E8F5EE', brd:'#A3D4BC', txt:'#1A6B48' },
+  teal:    { bg:'#EBF5F4', brd:'#A8D4D0', txt:'#0B4A44' },
+  gold:    { bg:'#FBF5E0', brd:'#E8CB6E', txt:'#9E8130' },
+  orange:  { bg:'#FEF3C7', brd:'#FCD34D', txt:'#B45309' },
+  red:     { bg:'#F8EBEB', brd:'#D4A8A8', txt:'#8C1A1A' },
+};
+const REC_CORES = {
+  'FAVORÁVEL':                { bg:'#E8F5EE', brd:'#A3D4BC', txt:'#1A6B48' },
+  'MODERADAMENTE FAVORÁVEL':  { bg:'#EBF5F4', brd:'#A8D4D0', txt:'#0B4A44' },
+  'INCONCLUSIVO':             { bg:'#FBF5E0', brd:'#E8CB6E', txt:'#9E8130' },
+  'DESFAVORÁVEL':             { bg:'#F8EBEB', brd:'#D4A8A8', txt:'#8C1A1A' },
+};
+
+function rAnalytics1(a) {
+  if (!a) return;
+
+  // ── KPI Score
+  const sc = document.getElementById('k1-score');
+  const sb = document.getElementById('k1-score-sub');
+  if (sc) {
+    animN('k1-score', a.score);
+    if (sb && a.interpretacao) sb.textContent = a.interpretacao.label;
+    // Cor do score
+    const cor = SCORE_CORES[a.interpretacao?.cor] || SCORE_CORES.teal;
+    const card = sc.closest('.kpi-card');
+    if (card) {
+      card.style.background = `linear-gradient(135deg,#0B4A44 0%,#145E58 100%)`;
+    }
+  }
+
+  // ── KPI Recomendação
+  const recCard  = document.getElementById('k1-rec-card');
+  const recLabel = document.getElementById('k1-rec-label');
+  const recAcao  = document.getElementById('k1-rec-acao');
+  const recObs   = document.getElementById('k1-rec-obs');
+  if (recCard && a.recomendacao) {
+    const rc = REC_CORES[a.recomendacao] || REC_CORES['INCONCLUSIVO'];
+    recCard.style.background   = rc.bg;
+    recCard.style.borderColor  = rc.brd;
+    recCard.style.setProperty('--kc', rc.brd);
+    if (recLabel) { recLabel.textContent = a.recomendacao; recLabel.style.color = rc.txt; }
+    if (recAcao)  recAcao.textContent  = a.acaoSugerida || '';
+    if (recObs)   recObs.textContent   = '';  // obs vai no simulador
+  }
+
+  // ── Tag simulador
+  const simTag = document.getElementById('r1-sim-tag');
+  if (simTag && a.recomendacao) {
+    const rc = REC_CORES[a.recomendacao] || REC_CORES['INCONCLUSIVO'];
+    simTag.textContent = a.recomendacao;
+    simTag.style.background  = rc.bg;
+    simTag.style.border      = `1px solid ${rc.brd}`;
+    simTag.style.color       = rc.txt;
+  }
+
+  // ── Dados do simulador
+  const simProb  = document.getElementById('sim-prob');
+  const simValor = document.getElementById('sim-valor');
+  const simIdx   = document.getElementById('sim-idx');
+  const simBase  = document.getElementById('sim-base');
+  const simObs   = document.getElementById('sim-obs');
+
+  if (simProb) {
+    // Usar taxaReal se disponível (vem dos outcomes DataJud), senão usa probabilidade ponderada
+    const pct = a.taxaReal !== null ? a.taxaReal : a.probabilidade;
+    simProb.textContent = (pct * 100).toFixed(1) + '%';
+    simProb.style.color = pct >= 0.6 ? '#1A6B48' : pct >= 0.4 ? '#9E8130' : '#8C1A1A';
+  }
+  if (simValor && a.valorEstMin) {
+    simValor.textContent = `R$ ${a.valorEstMin.toLocaleString('pt-BR')} – R$ ${a.valorEstMax.toLocaleString('pt-BR')}`;
+  }
+  if (simIdx && a.indiceDecisao !== undefined) {
+    simIdx.textContent = a.indiceDecisao.toFixed(2);
+    simIdx.style.color = a.indiceDecisao >= 0.70 ? '#1A6B48' : a.indiceDecisao >= 0.55 ? '#0B4A44' : a.indiceDecisao >= 0.40 ? '#9E8130' : '#8C1A1A';
+  }
+  if (simBase) {
+    simBase.textContent = (a.totalGeral || a.base || 0).toLocaleString('pt-BR');
+  }
+  if (simObs) {
+    simObs.textContent = a.observacao || '';
+  }
+
+  // ── Obs box cor
+  const simObsBox = document.getElementById('sim-obs-box');
+  if (simObsBox && a.recomendacao) {
+    const rc = REC_CORES[a.recomendacao] || REC_CORES['INCONCLUSIVO'];
+    simObsBox.style.background  = rc.bg;
+    simObsBox.style.borderColor = rc.brd;
+    const lbl = simObsBox.querySelector('div:first-child');
+    if (lbl) lbl.style.color = rc.txt;
+  }
+}
+
 // ── EXPORT CSV ───────────────────────────────────────────────────
 function exportCSV1() {
   if (!curData1) return;
@@ -1508,7 +1757,9 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 function showLoad(l,s)  { document.getElementById('loading').classList.add('active'); document.getElementById('load-label').textContent=l; document.getElementById('load-sub').textContent=s||''; }
 function hideLoad()     { document.getElementById('loading').classList.remove('active'); }
 function animN(id,tgt)  {
-  const el=document.getElementById(id); const dur=600; const t0=performance.now();
+  const el=document.getElementById(id);
+  if (!el) return;
+  const dur=600; const t0=performance.now();
   const fn=t=>{const pr=Math.min((t-t0)/dur,1),e=1-Math.pow(1-pr,3);el.textContent=Math.round(tgt*e).toLocaleString('pt-BR');if(pr<1)requestAnimationFrame(fn);};
   requestAnimationFrame(fn);
 }
@@ -1536,7 +1787,7 @@ document.addEventListener('keydown',e=>{
 (function init(){
   initYears();
   loadCfg();
-  dlog('INIT',`LAADV JusData Analytics v2.0 — ${new Date().toLocaleString('pt-BR')}`);
+  dlog('INIT',`LAADV JusData Analytics v2.3 — ${new Date().toLocaleString('pt-BR')}`);
   dlog('INFO','Tab 1: Relatório por empresa · Tab 2: Busca DataJud');
 })();
 </script>
