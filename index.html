@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <!--
 ╔══════════════════════════════════════════════════════════════╗
-║  LAADV — JusData Analytics v2.3                              ║
+║  LAADV — JusData Analytics v2.4.1                              ║
 ║  Luís Albert Advocacia | GitHub Pages Ready                  ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  [v2.0.0] 2026-03-19                                         ║
@@ -342,7 +342,7 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 <div class="topbar">
   <span class="topbar-l">Luís Albert Advocacia — Plataforma Administrativa</span>
   <span class="topbar-r">
-    <span class="topbar-dot"></span>JusData Analytics v2.3
+    <span class="topbar-dot"></span>JusData Analytics v2.4.1
     <button class="devbtn" onclick="toggleDev()">DEV</button>
   </span>
 </div>
@@ -868,21 +868,43 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
         <div class="form-grid" style="margin-bottom:1rem">
           <div class="field">
             <label class="field-label">Código do Assunto (CNJ)</label>
+            <div style="font-size:.65rem;color:var(--orange);margin-bottom:.3rem">⚠ Use códigos da família 77xx — os códigos 104xx são inconsistentes entre tribunais</div>
             <select id="t2-assunto">
               <option value="">Todos os assuntos</option>
+              <optgroup label="─── CONSUMIDOR / INDENIZAÇÃO ───────────────">
+              <option value="7779">7779 — Indenização por Dano Moral</option>
+              <option value="7780">7780 — Indenização por Dano Material</option>
               <option value="14925">14925 — Repetição do Indébito</option>
-              <option value="10793">10793 — Indenização por Dano Moral</option>
-              <option value="10443">10443 — Energia Elétrica</option>
-              <option value="10444">10444 — Suspensão / Interrupção do Fornecimento</option>
-              <option value="10445">10445 — Tarifa / Cobrança</option>
-              <option value="10448">10448 — Telecomunicações</option>
-              <option value="10449">10449 — Telefonia</option>
-              <option value="10450">10450 — Internet</option>
+              <option value="6226">6226 — Inclusão Indevida em Cadastro de Inadimplentes</option>
+              <option value="7768">7768 — Rescisão do Contrato e Devolução do Dinheiro</option>
+              <option value="7781">7781 — Protesto Indevido de Título</option>
+              </optgroup>
+              <optgroup label="─── ENERGIA / ÁGUA / TELECOM ───────────────">
+              <option value="7760">7760 — Fornecimento de Energia Elétrica</option>
+              <option value="7761">7761 — Fornecimento de Água / Esgoto</option>
+              <option value="9607">9607 — Telefonia / Telecomunicações</option>
+              <option value="7762">7762 — Gás</option>
+              </optgroup>
+              <optgroup label="─── BANCÁRIO / CRÉDITO ─────────────────────">
+              <option value="7752">7752 — Bancários (geral)</option>
+              <option value="7772">7772 — Cartão de Crédito</option>
+              <option value="11807">11807 — Empréstimo Consignado</option>
+              <option value="11811">11811 — Financiamento / Leasing</option>
+              <option value="7698">7698 — Cheque</option>
+              </optgroup>
+              <optgroup label="─── OUTROS ─────────────────────────────────">
+              <option value="10433">10433 — Indenização Dano Moral (variante TJRJ)</option>
               <option value="9636">9636 — Contratos de Consumo</option>
-              <option value="6003">6003 — Responsabilidade do Fornecedor</option>
-              <option value="10786">10786 — Dano Moral</option>
-              <option value="11872">11872 — Cartão de Crédito</option>
-              <option value="7771">7771 — Serviço Público</option>
+              <option value="6003">6003 — Práticas Abusivas</option>
+              <option value="6017">6017 — Dívida Ativa (Execução Fiscal)</option>
+              <option value="1116">1116 — Execução Fiscal (classe processual)</option>
+              </optgroup>
+              <optgroup label="⚠ CÓDIGOS ANTIGOS — NÃO CONFIÁVEIS ────────">
+              <option value="10443" disabled>10443 — NÃO USAR: retorna Direito de Imagem/Esbulho no TJRJ</option>
+              <option value="10444" disabled>10444 — NÃO USAR: código inconsistente entre TJs</option>
+              <option value="10445" disabled>10445 — NÃO USAR: retorna Esbulho/Turbação/Ameaça no TJRJ/SP/MG/RS</option>
+              <option value="10448" disabled>10448 — NÃO USAR: Telecom antigo, inconsistente</option>
+              </optgroup>
             </select>
           </div>
           <div class="field">
@@ -980,7 +1002,7 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
       </div>
       <div class="footer-nome">Luís Albert Advocacia</div>
     </div>
-    <div class="footer-copy">LAADV — JusData Analytics v2.3 · CNJ DataJud<br>Manaus – AM</div>
+    <div class="footer-copy">LAADV — JusData Analytics v2.4.1 · CNJ DataJud<br>Manaus – AM</div>
   </div>
 </footer>
 
@@ -1037,6 +1059,27 @@ const IBGE = {
   3301850:'Resende',
   3304300:'Rio Bonito',
   3305703:'Teresópolis',
+  // ── TJAM — Amazonas (IBGE codes confirmados via top_assuntos) ──
+  1302603:'Manaus',
+  1301704:'Itacoatiara',
+  1302504:'Manacapuru',
+  1301902:'Coari',
+  1303403:'Parintins',
+  1301209:'Maués',
+  1304203:'Tefé',
+  1301852:'Iranduba',
+  1303536:'Presidente Figueiredo',
+  1302405:'Lábrea',
+  1302702:'Maués',
+  1302900:'Novo Aripuanã',
+  1304062:'São Gabriel da Cachoeira',
+  1300706:'Borba',
+  1301308:'Humaitá',
+  1303569:'Rio Preto da Eva',
+  1301951:'Eirunepé',
+  1301605:'Carauari',
+  1304401:'Tonantins',
+  1300300:'Autazes',
 };
 function ibgeNome(code) { return IBGE[code] || `Comarca ${code}`; }
 
@@ -1805,7 +1848,7 @@ document.addEventListener('keydown',e=>{
 (function init(){
   initYears();
   loadCfg();
-  dlog('INIT',`LAADV JusData Analytics v2.3 — ${new Date().toLocaleString('pt-BR')}`);
+  dlog('INIT',`LAADV JusData Analytics v2.4.1 — ${new Date().toLocaleString('pt-BR')}`);
   dlog('INFO','Tab 1: Relatório por empresa · Tab 2: Busca DataJud');
 })();
 </script>
