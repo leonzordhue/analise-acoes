@@ -1086,7 +1086,7 @@ function updStatus(st,tx) {
 }
 
 // ── API CALL ─────────────────────────────────────────────────────
-async function callGAS(params, ms=45000) {
+async function callGAS(params, ms=90000) {
   const p = { ...params, apiKey: CFG.key, sheetId: CFG.sid };
   const qs = new URLSearchParams(p).toString();
   const ctrl = new AbortController();
@@ -1129,26 +1129,39 @@ function selEmpresa(card, setor, label, razao) {
 
 async function gerarRelatorio1() {
   if (!selEmp) return;
-  const anoI = document.getElementById('t1-ano-i').value;
-  const anoF = document.getElementById('t1-ano-f').value;
+  const anoI = parseInt(document.getElementById('t1-ano-i').value);
+  const anoF = parseInt(document.getElementById('t1-ano-f').value);
+  const anos = anoF - anoI;
 
-  showLoad('Consultando DataJud…', `${selEmp.label} · ${selEmp.setor}`);
+  // Aviso para períodos longos
+  const hint = document.getElementById('sel-hint');
+  if (anos > 5) {
+    if (hint) hint.innerHTML = `<span style="color:var(--orange)">⚠ Período longo (${anos} anos) — consulta pode demorar até 90s</span>`;
+  } else {
+    if (hint) hint.textContent = `Selecionado: ${selEmp.label}`;
+  }
+
+  showLoad('Consultando DataJud…', anos > 5 ? `${selEmp.label} · ${anos} anos de dados — aguarde` : `${selEmp.label} · ${selEmp.setor}`);
   try {
     const r = await callGAS({
       action: 'empresa',
       setor:  selEmp.setor,
       label:  selEmp.label,
       tribunal: 'TJRJ',
-      anoInicio: anoI,
-      anoFim: anoF,
-    });
+      anoInicio: String(anoI),
+      anoFim: String(anoF),
+    }, anos > 5 ? 90000 : 60000);  // timeout maior para períodos longos
     if (r.error) throw new Error(r.error);
     curData1 = r;
     renderRelatorio1(r);
     dlog('OK', `Relatório: ${selEmp.label} → ${r.total} ações`);
   } catch(e) {
     dlog('ERROR', e.message);
-    alert('Erro: '+e.message);
+    if (e.message && e.message.includes('abort')) {
+      alert('⏱ Timeout — A consulta demorou mais de 90s.\n\nSugestões:\n• Reduza o período (ex: 2020–2024)\n• O DataJud pode estar lento no momento\n• Tente novamente em instantes');
+    } else {
+      alert('Erro: '+e.message);
+    }
   } finally { hideLoad(); }
 }
 
@@ -1157,11 +1170,12 @@ function renderRelatorio1(d) {
   sec.classList.remove('hidden');
 
   document.getElementById('r1-nome').textContent = selEmp.label.toUpperCase();
+  const totalLabel = d.total >= 10000 ? `+${d.total.toLocaleString('pt-BR')}` : d.total.toLocaleString('pt-BR');
   document.getElementById('r1-meta').innerHTML = `
     <span>📍 TJRJ</span>
     <span>📅 ${d.anoInicio}–${d.anoFim}</span>
     <span>🕒 ${new Date(d.timestamp).toLocaleString('pt-BR')}</span>
-    <span>📊 ${d.total.toLocaleString('pt-BR')} ações no setor</span>`;
+    <span>📊 ${totalLabel} ações no setor${d.total >= 10000 ? ' <span style="color:var(--orange);font-size:.65rem">(limite API: real pode ser maior)</span>' : ''}</span>`;
   document.getElementById('r1-cache-tag').classList.toggle('hidden', !d.fromCache);
   document.getElementById('r1-tag-setor').textContent = `Setor: ${selEmp.setor}`;
 
@@ -1173,10 +1187,14 @@ function renderRelatorio1(d) {
 
   animN('k1-media', d.media||0);
   document.getElementById('k1-proc').textContent  = pct !== '—' ? pct+'%' : '—';
-  document.getElementById('k1-total').textContent = d.total.toLocaleString('pt-BR');
-  const decReal = Math.min(dec, d.total);
+  const kpiTotalEl = document.getElementById('k1-total');
+  if (kpiTotalEl) kpiTotalEl.textContent = (d.total >= 10000 ? '+' : '') + d.total.toLocaleString('pt-BR');
+  // "Com decisão final" = processos com resultado nos outcomes (mais preciso que d.total)
+  // d.total pode ser limitado a 10.000 pelo DataJud quando o real é maior
+  const outTotal = (out.procedente||0)+(out.procedente_parcial||0)+(out.improcedente||0)+(out.extincao||0)+(out.acordo||0);
+  const decReal  = outTotal > 0 ? outTotal : Math.min(dec, d.total);
   document.getElementById('k1-dec').textContent   = decReal.toLocaleString('pt-BR');
-  document.getElementById('k1-media-sub').textContent = `${d.anoInicio}–${d.anoFim} · TJRJ`;
+  document.getElementById('k1-media-sub').textContent = `${d.anoInicio}–${d.anoFim} · TJRJ · ${d.porAno?.length||0} anos`;
   document.getElementById('k1-total-sub').textContent = `${d.anoInicio}–${d.anoFim}`;
 
   // Info sobre dados
