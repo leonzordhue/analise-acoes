@@ -1022,7 +1022,57 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 <script>
 "use strict";
 
-// ── DATA FORMATTER ──────────────────────────────────────────────
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  AKE — AXIOMATIC KERNEL ENGINE · UNIFIED FIELD THEORY                       ║
+// ║  Protocolo: UFT-1.0 · Perfil Híbrido · Library interna + GAS API           ║
+// ╠══════════════════════════════════════════════════════════════════════════════╣
+// ║  @domain    Direito — Analytics Processual (JusData)                         ║
+// ║  @author    Paulo Esteves Fernandes Neto                                     ║
+// ║  @client    LAADV — Luís Albert Advocacia                                    ║
+// ║  @version   1.0.0-ake                                                       ║
+// ║  @build     GENESIS_RETROFIT                                                ║
+// ║  @created   2026-03-24                                                      ║
+// ║                                                                              ║
+// ║  CLASSIFICAÇÃO AKE:                                                          ║
+// ║    Perfil:        Híbrido (Library interna: IBGE comarcas | Dados via GAS)   ║
+// ║    Camada 1 (Library):   IBGE{} — Mapeamento código IBGE → nome de comarca  ║
+// ║    Camada 2 (Logic):     callGAS() — Interface com Google Apps Script        ║
+// ║                          gerarRelatorio1() — Relatório por empresa           ║
+// ║                          Charts: tendência, outcome, grau, comarca           ║
+// ║    Camada 4 (Log):       AKE_BUILD_LOG ativo                                ║
+// ║    Camada 6 (UI):        Tabs empresa/processo, charts Chart.js, tabela     ║
+// ║                                                                              ║
+// ║  ⚠ NOTA AKE-SOV: Parcialmente soberano. Comarcas IBGE embutidas.           ║
+// ║  Dados processuais dependem de Google Apps Script (GAS) externo.             ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+
+// ============================================================================
+// CAMADA 4 — LOG ENGINE
+// ============================================================================
+const AKE_BUILD_LOG = Object.freeze([{
+  build: "1.0.0-ake",
+  data: "2026-03-24T11:15:00-04:00",
+  autor: "Paulo Esteves Fernandes Neto",
+  ia_assistente: "Claude Opus 4.6",
+  tipo: "GENESIS_RETROFIT",
+  descricao: "Retrofit AKE no JusData Analytics. Híbrido — IBGE embutido + dados via GAS.",
+  estado_pre_retrofit: { linhas: 1856, dados: "IBGE comarcas (RJ+AM) embutido + Google Apps Script API" },
+  axiomas_identificados: [
+    "IBGE{} — Mapeamento de 22 códigos IBGE para nomes de comarca (TJRJ + TJAM)",
+    "ibgeNome() — Lookup de comarca por código com fallback",
+    "callGAS() — Interface assíncrona com Google Apps Script (timeout 90s)",
+    "gerarRelatorio1() — Agregação de processos por empresa: tendência, outcomes, grau, comarca",
+    "fmtData() — Parser multi-formato de datas (ISO, YYYYMMDDHHmmss, string)"
+  ],
+  tentativas_falhas: [],
+  erros_corrigidos: []
+}]);
+
+// ============================================================================
+// CAMADA 1 — THE LIBRARY (Parcialmente Soberana)
+// ============================================================================
+
+// ── CAMADA 2 — LOGIC CORE ──
 function fmtData(d) {
   if (!d) return '—';
   const s = String(d);
@@ -1037,6 +1087,13 @@ function fmtData(d) {
   return s;
 }
 
+/**
+ * @meta Mapeamento IBGE → Comarca
+ * @source IBGE (códigos municipais 7 dígitos) + TJRJ/TJAM (designação de comarca)
+ * @coverage 22 comarcas: 17 TJRJ + 5 TJAM (expandível)
+ * @sovereignty SOBERANO — dados embutidos
+ * @ake_rule AKE-LIB-001
+ */
 // ── IBGE → COMARCA ──────────────────────────────────────────────
 const IBGE = {
   3304557:'Capital / Rio de Janeiro',
