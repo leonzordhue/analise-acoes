@@ -1327,7 +1327,9 @@ function updStatus(st,tx) {
 }
 
 // ── API CALL ─────────────────────────────────────────────────────
-async function callGAS(params, ms=90000) {
+// @ake BUILD_2.5.1 — FIX: hoisting bug — função renomeada para _callGAS_real
+// callGAS() agora é o único ponto de entrada, com roteamento DEMO interno
+const _callGAS_real = async function(params, ms=90000) {
   const p = { ...params, apiKey: CFG.key, sheetId: CFG.sid };
   const qs = new URLSearchParams(p).toString();
   const ctrl = new AbortController();
@@ -1339,7 +1341,7 @@ async function callGAS(params, ms=90000) {
     document.getElementById('dev-resp').textContent = JSON.stringify(d,null,2);
     return d;
   } finally { clearTimeout(tid); }
-}
+};
 
 // ── TABS ─────────────────────────────────────────────────────────
 function switchTab(id, btn) {
@@ -2778,14 +2780,21 @@ function getDemoData(setor, label, anoI, anoF) {
 }
 
 /**
- * Override de callGAS para DEMO MODE.
- * Quando DEMO_MODE === true, retorna dados sintéticos sem chamada de rede.
+ * callGAS — ponto de entrada único para todas as chamadas ao GAS/DataJud.
+ * Roteia para _callGAS_real (produção) ou dados sintéticos (DEMO_MODE).
+ *
+ * @ake BUILD_2.5.1 — FIX CRÍTICO: eliminado padrão de override com function
+ *   declaration (causa hoisting → _callGAS_original captura a si mesma →
+ *   recursão infinita → stack overflow → UI congela, nenhum elemento clicável).
+ * @rule AKE: function declarations são sempre hoisted — nunca usar para override.
+ *   Usar const/arrow functions ou consolidar em função única.
+ * tentativas_falhas: ['_callGAS_original = callGAS + async function callGAS → recursão infinita']
  */
-const _callGAS_original = callGAS;
 async function callGAS(params, ms) {
-  if (!DEMO_MODE) return _callGAS_original(params, ms);
+  // ── PRODUÇÃO ──────────────────────────────────────────────────
+  if (!DEMO_MODE) return _callGAS_real(params, ms);
 
-  // Simula latência de rede
+  // ── DEMO MODE — dados sintéticos sem chamada de rede ──────────
   await new Promise(r => setTimeout(r, 800 + Math.random() * 400));
 
   if (params.action === 'ping') return { ok: true, ts: new Date().toISOString(), demo: true };
@@ -2816,11 +2825,9 @@ async function callGAS(params, ms) {
   }
 
   if (params.action === 'cnpj') {
-    await new Promise(r => setTimeout(r, 600));
-    const cnpjDemo = params.cnpj || '00000000000191';
     return {
       ok: true, demo: true,
-      cnpj: cnpjDemo,
+      cnpj: params.cnpj || '00000000000191',
       razao_social: 'LIGHT SERVIÇOS DE ELETRICIDADE S.A.',
       nome_fantasia: 'LIGHT',
       cnae_fiscal: 3514001,
@@ -2833,6 +2840,8 @@ async function callGAS(params, ms) {
       setor: 'energia'
     };
   }
+
+  if (params.action === 'filtros') {
     const anoI = parseInt(params.anoInicio) || 2022;
     const anoF = parseInt(params.anoFim)    || 2024;
     const base = getDemoData('geral', 'Filtros', anoI, anoF);
