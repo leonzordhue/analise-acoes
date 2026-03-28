@@ -21,7 +21,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" onerror="window._chartJsError=true"></script>
+<script>
+// @ake AKE-GUARD-001 — Guard global para Chart.js ausente
+// Se CDN falhou, Chart fica undefined → qualquer new Chart() lança ReferenceError
+// Esse guard substitui Chart por um mock que falha silenciosamente
+if (typeof Chart === 'undefined') {
+  window.Chart = function() { return { destroy: function(){}, data:{}, update: function(){} }; };
+  console.warn('[AKE] Chart.js CDN falhou. Gráficos desativados. Verifique sua conexão.');
+}
+</script>
 <style>
 :root{
   --teal:#0B4A44;--teal-mid:#145E58;--teal-light:#1C7A72;--teal-hover:#0d5a54;
@@ -1163,6 +1172,10 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
 <script>
 "use strict";
 
+// @ake BUILD_2.5.2 — DEMO_MODE declarado no topo (antes de qualquer função)
+var DEMO_MODE = false;
+
+
 // ╔══════════════════════════════════════════════════════════════════════════════╗
 // ║  AKE — AXIOMATIC KERNEL ENGINE · UNIFIED FIELD THEORY                       ║
 // ║  Protocolo: UFT-1.0 · Perfil Híbrido · Library interna + GAS API           ║
@@ -1327,21 +1340,9 @@ function updStatus(st,tx) {
 }
 
 // ── API CALL ─────────────────────────────────────────────────────
-// @ake BUILD_2.5.1 — FIX: hoisting bug — função renomeada para _callGAS_real
-// callGAS() agora é o único ponto de entrada, com roteamento DEMO interno
-const _callGAS_real = async function(params, ms=90000) {
-  const p = { ...params, apiKey: CFG.key, sheetId: CFG.sid };
-  const qs = new URLSearchParams(p).toString();
-  const ctrl = new AbortController();
-  const tid  = setTimeout(()=>ctrl.abort(), ms);
-  try {
-    const r = await fetch(`${CFG.url}?${qs}`, {signal:ctrl.signal});
-    const d = await r.json();
-    lastResp = d;
-    document.getElementById('dev-resp').textContent = JSON.stringify(d,null,2);
-    return d;
-  } finally { clearTimeout(tid); }
-};
+// @ake BUILD_2.5.2 — callGAS unificada: produção + demo em função única
+// Sem _callGAS_real, sem const, sem hoisting ambíguo.
+// DEMO_MODE é testado no início da função. Simples e auditável.
 
 // ── TABS ─────────────────────────────────────────────────────────
 function switchTab(id, btn) {
@@ -2206,90 +2207,79 @@ async function resolverCNPJ() {
   const raw  = document.getElementById('t3-cnpj').value;
   const cnpj = raw.replace(/\D/g,'');
 
-  // ── Validação ───────────────────────────────────────────────────
   if (!validarCNPJ(cnpj)) {
     alert(`CNPJ inválido: "${raw}"\n\nVerifique os dígitos e tente novamente.`);
     document.getElementById('t3-cnpj').focus();
     return;
   }
 
-  showLoad('Consultando BrasilAPI…', `CNPJ ${fmtCNPJ(cnpj)}`);
+  showLoad('Consultando BrasilAPI\u2026', `CNPJ ${fmtCNPJ(cnpj)}`);
   dlog('INFO', `[CNPJ] Resolvendo ${fmtCNPJ(cnpj)}`);
 
-  // ── Demo mode intercept ─────────────────────────────────────────
+  // ── Demo mode ────────────────────────────────────────────────
   if (DEMO_MODE) {
     await new Promise(r => setTimeout(r, 700));
-    const demoData = {
-      razao_social: 'LIGHT SERVIÇOS DE ELETRICIDADE S.A.',
+    const dd = {
+      razao_social: 'LIGHT SERVI\u00c7OS DE ELETRICIDADE S.A.',
       nome_fantasia: 'LIGHT',
       cnae_fiscal: 3514001,
-      cnae_fiscal_descricao: 'Distribuição de energia elétrica',
+      cnae_fiscal_descricao: 'Distribui\u00e7\u00e3o de energia el\u00e9trica',
       descricao_situacao_cadastral: 'ATIVA',
-      descricao_natureza_juridica: 'Sociedade Anônima Aberta',
+      descricao_natureza_juridica: 'Sociedade An\u00f4nima Aberta',
       porte: 'DEMAIS',
       municipio: 'RIO DE JANEIRO',
       uf: 'RJ',
     };
-    cnpjState.cnpj     = cnpj;
-    cnpjState.razao    = demoData.razao_social;
-    cnpjState.fantasia = demoData.nome_fantasia;
-    cnpjState.mun      = demoData.municipio;
-    cnpjState.uf       = demoData.uf;
-    cnpjState.porte    = fmtPorte(demoData.porte);
-    cnpjState.cnae     = `3514001 — ${demoData.cnae_fiscal_descricao}`;
-    cnpjState.setor    = 'energia';
-    cnpjState.apiData  = demoData;
-    renderEmpresaCard(demoData, 'energia', '3514', '3514001');
-    dlog('OK', '[CNPJ DEMO] Light Serviços de Eletricidade → setor energia');
+    cnpjState.cnpj = cnpj; cnpjState.razao = dd.razao_social;
+    cnpjState.fantasia = dd.nome_fantasia;  cnpjState.mun = dd.municipio;
+    cnpjState.uf = dd.uf; cnpjState.porte = fmtPorte(dd.porte);
+    cnpjState.cnae = `3514001 — ${dd.cnae_fiscal_descricao}`;
+    cnpjState.setor = 'energia'; cnpjState.apiData = dd;
+    renderEmpresaCard(dd, 'energia', '3514', '3514001');
+    dlog('OK', '[CNPJ DEMO] Light \u2192 energia');
     hideLoad();
     return;
   }
-    // ── Chamada BrasilAPI (CORS aberto — direto do browser) ────────
+
+  // ── Produção: BrasilAPI ────────────────────────────────────────
+  try {
     const ctrl = new AbortController();
     const tid  = setTimeout(() => ctrl.abort(), 15000);
     let resp;
     try {
       resp = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
-        signal: ctrl.signal,
-        headers: { 'Accept': 'application/json' }
+        signal: ctrl.signal, headers: { 'Accept': 'application/json' }
       });
     } finally { clearTimeout(tid); }
 
     if (!resp.ok) {
-      if (resp.status === 404) throw new Error(`CNPJ ${fmtCNPJ(cnpj)} não encontrado na Receita Federal.`);
-      if (resp.status === 429) throw new Error('Muitas requisições à BrasilAPI. Aguarde 1 minuto e tente novamente.');
+      if (resp.status === 404) throw new Error(`CNPJ ${fmtCNPJ(cnpj)} n\u00e3o encontrado na Receita Federal.`);
+      if (resp.status === 429) throw new Error('Muitas requisi\u00e7\u00f5es \u00e0 BrasilAPI. Aguarde 1 minuto.');
       throw new Error(`BrasilAPI retornou HTTP ${resp.status}`);
     }
 
     const data = await resp.json();
-    cnpjState.apiData = data;
-
-    // ── Extrair campos ─────────────────────────────────────────────
-    cnpjState.cnpj    = cnpj;
-    cnpjState.razao   = data.razao_social    || '—';
+    cnpjState.apiData  = data;
+    cnpjState.cnpj     = cnpj;
+    cnpjState.razao    = data.razao_social   || '\u2014';
     cnpjState.fantasia = data.nome_fantasia  || '';
-    cnpjState.mun     = data.municipio       || '—';
-    cnpjState.uf      = data.uf              || '';
-    cnpjState.porte   = fmtPorte(data.porte);
+    cnpjState.mun      = data.municipio      || '\u2014';
+    cnpjState.uf       = data.uf             || '';
+    cnpjState.porte    = fmtPorte(data.porte);
 
-    // CNAE principal: string do código (4 primeiros dígitos)
-    const cnaeFull   = String(data.cnae_fiscal || '').padStart(7,'0');
-    const cnae4      = cnaeFull.substring(0, 4);
-    cnpjState.cnae   = `${cnaeFull} — ${data.cnae_fiscal_descricao || 'Não informado'}`;
-
-    // ── Mapeamento automático de setor ─────────────────────────────
+    const cnaeFull       = String(data.cnae_fiscal || '').padStart(7,'0');
+    const cnae4          = cnaeFull.substring(0, 4);
+    cnpjState.cnae       = `${cnaeFull} \u2014 ${data.cnae_fiscal_descricao || 'N\u00e3o informado'}`;
     const setorDetectado = CNAE_MAP[cnae4] || null;
-    cnpjState.setor  = setorDetectado;
+    cnpjState.setor      = setorDetectado;
 
-    dlog('OK', `[CNPJ] ${cnpjState.razao} | CNAE ${cnaeFull} | setor: ${setorDetectado || 'não mapeado'}`);
-
-    // ── Renderizar card empresa ────────────────────────────────────
+    dlog('OK', `[CNPJ] ${cnpjState.razao} | CNAE ${cnaeFull} | setor: ${setorDetectado || 'n\u00e3o mapeado'}`);
     renderEmpresaCard(data, setorDetectado, cnae4, cnaeFull);
 
   } catch(e) {
     dlog('ERROR', `[CNPJ] ${e.message}`);
-    if (e.message.includes('abort') || e.message.includes('fetch')) {
-      alert('Timeout ao consultar BrasilAPI.\n\nVerifique sua conexão ou tente novamente.');
+    if (e.message && (e.message.includes('abort') || e.message.includes('fetch'))) {
+      alert('Timeout ao consultar BrasilAPI.\n\nVerifique sua conex\u00e3o.');
     } else {
       alert('Erro ao resolver CNPJ:\n' + e.message);
     }
@@ -2687,8 +2677,6 @@ function exportCSV_CNPJ() {
 // @ake BUILD_2.4.2 — 2026-03-28 — Adição de DEMO MODE e Direct DataJud
 // @desc Dados realistas do TJRJ para demonstração da plataforma sem GAS
 
-let DEMO_MODE = false;
-
 function toggleDemo() {
   DEMO_MODE = !DEMO_MODE;
   const btn = document.getElementById('btn-demo');
@@ -2780,83 +2768,87 @@ function getDemoData(setor, label, anoI, anoF) {
 }
 
 /**
- * callGAS — ponto de entrada único para todas as chamadas ao GAS/DataJud.
- * Roteia para _callGAS_real (produção) ou dados sintéticos (DEMO_MODE).
+ * callGAS — ponto de entrada único. Produção ou DEMO.
  *
- * @ake BUILD_2.5.1 — FIX CRÍTICO: eliminado padrão de override com function
- *   declaration (causa hoisting → _callGAS_original captura a si mesma →
- *   recursão infinita → stack overflow → UI congela, nenhum elemento clicável).
- * @rule AKE: function declarations são sempre hoisted — nunca usar para override.
- *   Usar const/arrow functions ou consolidar em função única.
- * tentativas_falhas: ['_callGAS_original = callGAS + async function callGAS → recursão infinita']
+ * @ake BUILD_2.5.2 — Arquitetura final limpa:
+ *   Sem _callGAS_real. Sem const. Sem padrão de override.
+ *   A lógica de fetch está DENTRO desta função.
+ *   DEMO_MODE testado no início. Impossível recursão.
+ *
+ * tentativas_falhas: [
+ *   "v1: async function callGAS override → hoisting → recursão infinita",
+ *   "v2: const _callGAS_real + callGAS → dependência de closure frágil"
+ * ]
  */
 async function callGAS(params, ms) {
-  // ── PRODUÇÃO ──────────────────────────────────────────────────
-  if (!DEMO_MODE) return _callGAS_real(params, ms);
+  ms = ms || 90000;
 
-  // ── DEMO MODE — dados sintéticos sem chamada de rede ──────────
-  await new Promise(r => setTimeout(r, 800 + Math.random() * 400));
+  // ── DEMO MODE ─────────────────────────────────────────────────
+  if (DEMO_MODE) {
+    await new Promise(r => setTimeout(r, 800 + Math.random() * 400));
 
-  if (params.action === 'ping') return { ok: true, ts: new Date().toISOString(), demo: true };
+    if (params.action === 'ping') return { ok: true, ts: new Date().toISOString(), demo: true };
 
-  if (params.action === 'empresa') {
-    const anoI = parseInt(params.anoInicio) || 2019;
-    const anoF = parseInt(params.anoFim)    || 2024;
-    return getDemoData(params.setor || 'energia', params.label || '—', anoI, anoF);
+    if (params.action === 'empresa') {
+      const anoI = parseInt(params.anoInicio) || 2019;
+      const anoF = parseInt(params.anoFim)    || 2024;
+      return getDemoData(params.setor || 'energia', params.label || '—', anoI, anoF);
+    }
+
+    if (params.action === 'processo') {
+      return {
+        encontrado: true, numero: params.numero, tribunal: params.tribunal || 'TJRJ',
+        processos: [{
+          numero: params.numero, tribunal: params.tribunal || 'TJRJ', grau: 'JE',
+          classe: 'Procedimento do Juizado Especial Cível',
+          comarca: 'Capital / Rio de Janeiro', dataAjuizamento: '2024-01-15',
+          resultado: 'Procedente',
+          ultimoMov: { codigo: 198, nome: 'Julgamento de Procedência Total' },
+          assuntos: [{ codigo: 9529, nome: 'Fornecimento de Energia Elétrica' }]
+        }]
+      };
+    }
+
+    if (params.action === 'cnpj') {
+      return {
+        ok: true, demo: true, cnpj: params.cnpj || '00000000000191',
+        razao_social: 'LIGHT SERVIÇOS DE ELETRICIDADE S.A.', nome_fantasia: 'LIGHT',
+        cnae_fiscal: 3514001, cnae_fiscal_descricao: 'Distribuição de energia elétrica',
+        descricao_situacao_cadastral: 'ATIVA', descricao_natureza_juridica: 'Sociedade Anônima',
+        porte: 'DEMAIS', municipio: 'RIO DE JANEIRO', uf: 'RJ', setor: 'energia'
+      };
+    }
+
+    if (params.action === 'filtros') {
+      const anoI = parseInt(params.anoInicio) || 2022;
+      const anoF = parseInt(params.anoFim)    || 2024;
+      const base = getDemoData('geral', 'Filtros', anoI, anoF);
+      return {
+        total: 1243, totalPaginas: 13, tribunal: params.tribunal || 'TJRJ',
+        anoInicio: anoI, anoFim: anoF,
+        pagina: (parseInt(params.pagina) || 0) + 1,
+        processos: base.processos, outcomes: base.outcomes
+      };
+    }
+
+    return { error: 'Ação não suportada no modo demo.' };
   }
 
-  if (params.action === 'processo') {
-    return {
-      encontrado: true,
-      numero: params.numero,
-      tribunal: params.tribunal || 'TJRJ',
-      processos: [{
-        numero: params.numero,
-        tribunal: params.tribunal || 'TJRJ',
-        grau: 'JE',
-        classe: 'Procedimento do Juizado Especial Cível',
-        comarca: 'Capital / Rio de Janeiro',
-        dataAjuizamento: '2024-01-15',
-        resultado: 'Procedente',
-        ultimoMov: { codigo: 198, nome: 'Julgamento de Procedência Total' },
-        assuntos: [{ codigo: 9529, nome: 'Fornecimento de Energia Elétrica' }]
-      }]
-    };
+  // ── PRODUÇÃO — fetch direto ao GAS ────────────────────────────
+  const p   = Object.assign({}, params, { apiKey: CFG.key, sheetId: CFG.sid });
+  const qs  = Object.keys(p).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(p[k])).join('&');
+  const ctrl = new AbortController();
+  const tid  = setTimeout(function() { ctrl.abort(); }, ms);
+  try {
+    const r = await fetch(CFG.url + '?' + qs, { signal: ctrl.signal });
+    const d = await r.json();
+    lastResp = d;
+    var devEl = document.getElementById('dev-resp');
+    if (devEl) devEl.textContent = JSON.stringify(d, null, 2);
+    return d;
+  } finally {
+    clearTimeout(tid);
   }
-
-  if (params.action === 'cnpj') {
-    return {
-      ok: true, demo: true,
-      cnpj: params.cnpj || '00000000000191',
-      razao_social: 'LIGHT SERVIÇOS DE ELETRICIDADE S.A.',
-      nome_fantasia: 'LIGHT',
-      cnae_fiscal: 3514001,
-      cnae_fiscal_descricao: 'Distribuição de energia elétrica',
-      descricao_situacao_cadastral: 'ATIVA',
-      descricao_natureza_juridica: 'Sociedade Anônima',
-      porte: 'DEMAIS',
-      municipio: 'RIO DE JANEIRO',
-      uf: 'RJ',
-      setor: 'energia'
-    };
-  }
-
-  if (params.action === 'filtros') {
-    const anoI = parseInt(params.anoInicio) || 2022;
-    const anoF = parseInt(params.anoFim)    || 2024;
-    const base = getDemoData('geral', 'Filtros', anoI, anoF);
-    return {
-      total: 1243,
-      totalPaginas: 13,
-      tribunal: params.tribunal || 'TJRJ',
-      anoInicio: anoI, anoFim: anoF,
-      pagina: (parseInt(params.pagina) || 0) + 1,
-      processos: base.processos,
-      outcomes: base.outcomes
-    };
-  }
-
-  return { error: 'Ação não suportada no modo demo.' };
 }
 
 // ── AKE BUILD LOG UPDATE ────────────────────────────────────────
@@ -2869,6 +2861,15 @@ async function callGAS(params, ms) {
 // erros_corrigidos: [ch1-comarca_canvas_missing, demo_mode_absent]
 
 // ── INIT ─────────────────────────────────────────────────────────
+// @ake AKE-GUARD-002 — Captura de erros JS globais
+// Em produção: exibe toast de erro visível em vez de falha silenciosa
+window.addEventListener('error', function(e) {
+  dlog('ERROR', 'JS: ' + e.message + ' (' + (e.filename||'?') + ':' + e.lineno + ')');
+});
+window.addEventListener('unhandledrejection', function(e) {
+  dlog('ERROR', 'Promise: ' + String(e.reason));
+});
+
 (function init(){
   initYears();
   loadCfg();
