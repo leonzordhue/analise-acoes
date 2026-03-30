@@ -1447,9 +1447,15 @@ function abrirCfg() {
 async function ping() {
   try {
     const r = await callGAS({action:'ping'});
-    if (r.ok) updStatus('ok','conectado');
-    else updStatus('err','erro');
-  } catch(e) { updStatus('err','inacessível'); }
+    if (r.ok) {
+      updStatus('ok', r.transport === 'jsonp' ? 'conectado (JSONP)' : 'conectado');
+    } else {
+      updStatus('err','erro GAS');
+    }
+  } catch(e) {
+    updStatus('err','inacessível');
+    dlog('ERROR', 'ping falhou: ' + e.message);
+  }
 }
 function updStatus(st,tx) {
   const d=document.getElementById('hdr-dot'); const t=document.getElementById('hdr-txt');
@@ -1520,10 +1526,11 @@ async function gerarRelatorio1() {
     dlog('OK', `Relatório: ${selEmp.label} → ${r.total} ações`);
   } catch(e) {
     dlog('ERROR', e.message);
-    if (e.message && e.message.includes('abort')) {
-      alert('⏱ Timeout — A consulta demorou mais de 90s.\n\nSugestões:\n• Reduza o período (ex: 2020–2024)\n• O DataJud pode estar lento no momento\n• Tente novamente em instantes');
+    const msg = e.message || '';
+    if (msg.includes('Timeout') || msg.includes('abort')) {
+      mostrarErroGAS('⏱ Timeout', 'A consulta demorou demais.\n\n• Reduza o período (ex: 2021–2024)\n• O DataJud pode estar lento — tente em instantes');
     } else {
-      alert('Erro: '+e.message);
+      mostrarErroGAS('Falha na consulta', msg);
     }
   } finally { hideLoad(); }
 }
@@ -1901,7 +1908,67 @@ function rTableProcessos1(procs) {
   }).join('');
 }
 
-// ── SEÇÃO 2a: PROCESSO ───────────────────────────────────────────
+// ── ERROR HANDLER VISUAL ──────────────────────────────────────────
+/**
+ * Exibe toast de erro contextual com diagnóstico.
+ * Substitui alert() genérico. Mostra botão "Testar GAS" para diagnóstico.
+ *
+ * @ake BUILD_3.0.1 — AKE-UI-ERR-001
+ * @param {string} titulo  Título do erro
+ * @param {string} detalhe Mensagem detalhada
+ */
+function mostrarErroGAS(titulo, detalhe) {
+  // Remove toast anterior se existir
+  const old = document.getElementById('toast-erro-gas');
+  if (old) old.remove();
+
+  const gasUrl = CFG.url + '?action=ping&callback=_pingTest';
+  const el = document.createElement('div');
+  el.id = 'toast-erro-gas';
+  el.style.cssText = [
+    'position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999',
+    'background:#fff;border:2px solid var(--error,#B02020);border-radius:12px',
+    'box-shadow:0 8px 32px rgba(0,0,0,.18);padding:1.25rem 1.4rem',
+    'max-width:420px;font-family:var(--font,"DM Sans",sans-serif)',
+    'animation:mIn .22s ease'
+  ].join(';');
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:.75rem">
+      <div style="font-size:1.3rem;flex-shrink:0">⚠</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:.9rem;color:#7a1010;margin-bottom:.3rem">${titulo}</div>
+        <div style="font-size:.78rem;color:var(--text-mid,#3D4F63);line-height:1.55;white-space:pre-line">${detalhe}</div>
+        <div style="margin-top:.85rem;display:flex;gap:.5rem;flex-wrap:wrap">
+          <button onclick="window.open('${gasUrl}','_blank')"
+            style="font-size:.72rem;font-weight:700;padding:.4em 1em;border-radius:7px;border:1.5px solid var(--teal,#0B4A44);color:var(--teal,#0B4A44);background:transparent;cursor:pointer">
+            🔍 Testar GAS
+          </button>
+          <button onclick="toggleDemo()"
+            style="font-size:.72rem;font-weight:700;padding:.4em 1em;border-radius:7px;border:1.5px solid #C9A93E;color:#9E8130;background:transparent;cursor:pointer">
+            🎭 Usar Demo
+          </button>
+          <button onclick="document.getElementById('toast-erro-gas').remove()"
+            style="font-size:.72rem;font-weight:700;padding:.4em 1em;border-radius:7px;border:1.5px solid var(--gray-brd,#DDE3EC);color:var(--gray-mid,#8899AA);background:transparent;cursor:pointer">
+            ✕ Fechar
+          </button>
+        </div>
+        <div style="margin-top:.6rem;font-size:.65rem;color:var(--gray-mid,#8899AA)">
+          Ative 🎭 Demo para usar a plataforma com dados realistas sem GAS
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(el);
+  dlog('ERROR', titulo + ': ' + detalhe.substring(0, 80));
+
+  // Auto-remove após 30s
+  setTimeout(function() {
+    if (el.parentNode) el.remove();
+  }, 30000);
+}
+
+// ── BUSCA PROCESSO ────────────────────────────────────────────────
 async function buscaProcesso() {
   const num = document.getElementById('t2-numero').value.trim();
   const tri = document.getElementById('t2-tribunal').value;
@@ -1913,7 +1980,7 @@ async function buscaProcesso() {
     if (r.error) throw new Error(r.error);
     renderProcesso(r);
     dlog('OK', `Processo ${num}: encontrado=${r.encontrado}`);
-  } catch(e) { dlog('ERROR', e.message); alert('Erro: '+e.message); }
+  } catch(e) { mostrarErroGAS('Falha na consulta', e.message || 'Erro desconhecido'); }
   finally { hideLoad(); }
 }
 
@@ -1974,7 +2041,7 @@ async function buscaFiltros(pagina) {
     renderFiltros(r);
     document.getElementById('btn-exportf').disabled = false;
     dlog('OK', `Filtros: ${r.total} processos · pág ${curPag2}/${r.totalPaginas}`);
-  } catch(e) { dlog('ERROR', e.message); alert('Erro: '+e.message); }
+  } catch(e) { mostrarErroGAS('Falha na consulta', e.message || 'Erro desconhecido'); }
   finally { hideLoad(); }
 }
 
@@ -2628,7 +2695,7 @@ async function resolverCNPJ() {
     if (e.message && (e.message.includes('abort') || e.message.includes('fetch'))) {
       alert('Timeout ao consultar BrasilAPI.\n\nVerifique sua conex\u00e3o.');
     } else {
-      alert('Erro ao resolver CNPJ:\n' + e.message);
+      mostrarErroGAS('Erro ao resolver CNPJ', e.message || 'Verifique o CNPJ digitado.');
     }
   } finally {
     hideLoad();
@@ -2760,7 +2827,7 @@ async function gerarRelatorioCNPJ() {
     if (e.message.includes('abort')) {
       alert('⏱ Timeout. Reduza o período ou tente novamente.');
     } else {
-      alert('Erro: ' + e.message);
+      mostrarErroGAS('Falha na consulta', e.message || 'Erro desconhecido');
     }
   } finally {
     hideLoad();
@@ -3199,22 +3266,60 @@ async function callGAS(params, ms) {
     return { error: 'Ação não suportada no modo demo.' };
   }
 
-  // ── PRODUÇÃO — fetch direto ao GAS ────────────────────────────
-  const p   = Object.assign({}, params, { apiKey: CFG.key, sheetId: CFG.sid });
-  const qs  = Object.keys(p).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(p[k])).join('&');
-  const ctrl = new AbortController();
-  const tid  = setTimeout(function() { ctrl.abort(); }, ms);
-  try {
-    const r = await fetch(CFG.url + '?' + qs, { signal: ctrl.signal });
-    const d = await r.json();
-    lastResp = d;
-    var devEl = document.getElementById('dev-resp');
-    if (devEl) devEl.textContent = JSON.stringify(d, null, 2);
-    return d;
-  } finally {
-    clearTimeout(tid);
-  }
-}
+  // ── PRODUÇÃO — JSONP (bypassa CORS do GitHub Pages → GAS) ────────
+  // fetch() falha com "Failed to fetch" por CORS ao chamar GAS de origens externas.
+  // JSONP injeta <script> tag — sem restrição de origem, funciona de qualquer domínio.
+  // @ake BUILD_3.0.1 — FIX: fetch → JSONP
+  // tentativas_falhas: ['fetch() direto → CORS → Failed to fetch de leonzordhue.github.io']
+  return new Promise(function(resolve, reject) {
+    var cbName = '_gasCb_' + Date.now() + '_' + Math.floor(Math.random() * 9999);
+    var script = document.createElement('script');
+    var tid    = null;
+
+    function cleanup() {
+      if (tid) clearTimeout(tid);
+      if (window[cbName])     delete window[cbName];
+      if (script.parentNode)  script.parentNode.removeChild(script);
+    }
+
+    // Timeout
+    tid = setTimeout(function() {
+      cleanup();
+      reject(new Error('Timeout após ' + Math.round(ms / 1000) + 's. O DataJud pode estar lento — tente reduzir o período.'));
+    }, ms);
+
+    // Callback JSONP — GAS chama esta função com os dados
+    window[cbName] = function(data) {
+      cleanup();
+      // Registrar no dev panel
+      lastResp = data;
+      var devEl = document.getElementById('dev-resp');
+      if (devEl) devEl.textContent = JSON.stringify(data, null, 2);
+      resolve(data);
+    };
+
+    // Construir URL com callback
+    var p  = Object.assign({}, params, { apiKey: CFG.key, sheetId: CFG.sid, callback: cbName });
+    var qs = Object.keys(p).map(function(k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
+    }).join('&');
+
+    script.src     = CFG.url + '?' + qs;
+    script.async   = true;
+    script.onerror = function() {
+      cleanup();
+      reject(new Error(
+        'GAS inacessível. Verifique:\n' +
+        '1. URL correta em ⚙ Configurar\n' +
+        '2. Implantação → "Qualquer pessoa (incluindo anônimos)"\n' +
+        '3. GAS não foi re-implantado após edição do código'
+      ));
+    };
+
+    document.head.appendChild(script);
+  }); // fim new Promise
+
+} // fim async function callGAS
 
 // ── AKE BUILD LOG UPDATE ────────────────────────────────────────
 // Build 2.4.2 | 2026-03-28
