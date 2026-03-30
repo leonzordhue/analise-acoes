@@ -1412,7 +1412,7 @@ const SETOR_SUBTIPO = {
 };
 
 
-const GAS_URL  = 'https://script.google.com/macros/s/AKfycbwbIrz0O4YC7rlS9cz2_xAyBjfkLnb3ky_AFs1XKTx2z60APEgcZx2v_pRKTipnplhMUg/exec';
+const GAS_URL  = 'https://script.google.com/macros/s/AKfycbwooQwW6aII6ax00Nf6i2drBjG97N3aU6OGGcWZ2myXs6d6UsVELfL5_tYf1LzT-kIEpw/exec';
 const API_KEY  = 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
 const SHEET_ID = '1v2UI_OSF6r_WEfTc51SDAdY8uTZqIcARxNHGhIZROys';
 const CFG_KEY  = 'laadv_jd2_cfg';
@@ -3267,55 +3267,49 @@ async function callGAS(params, ms) {
   }
 
   // ── PRODUÇÃO — JSONP (bypassa CORS do GitHub Pages → GAS) ────────
-  // fetch() falha com "Failed to fetch" por CORS ao chamar GAS de origens externas.
-  // JSONP injeta <script> tag — sem restrição de origem, funciona de qualquer domínio.
-  // @ake BUILD_3.0.1 — FIX: fetch → JSONP
-  // tentativas_falhas: ['fetch() direto → CORS → Failed to fetch de leonzordhue.github.io']
+  // @ake BUILD_3.0.2 — JSONP robusto, settled flag, strings sem quebra literal
+  // tentativas_falhas: ['fetch() CORS blocked', 'strings multilinhas em single-quotes']
   return new Promise(function(resolve, reject) {
-    var cbName = '_gasCb_' + Date.now() + '_' + Math.floor(Math.random() * 9999);
-    var script = document.createElement('script');
-    var tid    = null;
+    var cbName  = '_gasCb_' + Date.now() + '_' + Math.floor(Math.random() * 9999);
+    var script  = document.createElement('script');
+    var tid     = null;
+    var settled = false;
 
     function cleanup() {
       if (tid) clearTimeout(tid);
-      if (window[cbName])     delete window[cbName];
-      if (script.parentNode)  script.parentNode.removeChild(script);
+      if (window[cbName])    delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
     }
 
-    // Timeout
-    tid = setTimeout(function() {
+    function settle(fn, val) {
+      if (settled) return;
+      settled = true;
       cleanup();
-      reject(new Error('Timeout após ' + Math.round(ms / 1000) + 's. O DataJud pode estar lento — tente reduzir o período.'));
+      fn(val);
+    }
+
+    tid = setTimeout(function() {
+      settle(reject, new Error('GAS sem resposta. Code.gs precisa ser re-implantado com suporte JSONP. Use o botao Demo enquanto resolve.'));
     }, ms);
 
-    // Callback JSONP — GAS chama esta função com os dados
     window[cbName] = function(data) {
-      cleanup();
-      // Registrar no dev panel
       lastResp = data;
       var devEl = document.getElementById('dev-resp');
       if (devEl) devEl.textContent = JSON.stringify(data, null, 2);
-      resolve(data);
+      settle(resolve, data);
     };
 
-    // Construir URL com callback
     var p  = Object.assign({}, params, { apiKey: CFG.key, sheetId: CFG.sid, callback: cbName });
     var qs = Object.keys(p).map(function(k) {
       return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
     }).join('&');
 
-    script.src     = CFG.url + '?' + qs;
-    script.async   = true;
     script.onerror = function() {
-      cleanup();
-      reject(new Error(
-        'GAS inacessível. Verifique:\n' +
-        '1. URL correta em ⚙ Configurar\n' +
-        '2. Implantação → "Qualquer pessoa (incluindo anônimos)"\n' +
-        '3. GAS não foi re-implantado após edição do código'
-      ));
+      settle(reject, new Error('GAS inacessivel. Verifique: (1) URL em Configurar, (2) Acesso = Qualquer pessoa, (3) Code.gs re-implantado. Use Demo enquanto resolve.'));
     };
 
+    script.src   = CFG.url + '?' + qs;
+    script.async = true;
     document.head.appendChild(script);
   }); // fim new Promise
 
