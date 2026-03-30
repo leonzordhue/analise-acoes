@@ -3369,52 +3369,60 @@ async function callGAS(params, ms) {
     return { error: 'Ação não suportada no modo demo.' };
   }
 
-  // ── PRODUÇÃO — fetch via proxy CORS (allorigins.win) ────────────
-  // @ake BUILD_3.1.0 — FIX definitivo do CORS
-  //
-  // Problema confirmado: GitHub Pages → script.google.com → redirect Google auth
-  // antes do doGet ser executado, mesmo com acesso=publico.
-  // O diag retornou ok:true quando aberto no browser (usuario autenticado).
-  // Com script tag anonima, o Google redireciona antes.
-  //
-  // Solucao: allorigins.win faz o fetch server-side e devolve com CORS aberto.
-  // Sem script tag, sem JSONP, sem onerror. Fetch simples e auditavel.
-  //
-  // @source https://allorigins.win — proxy CORS publico e gratuito
-  // @sovereignty PARCIALMENTE SOBERANO — depende de allorigins.win
-  // @fallback Se allorigins falhar, ativa Demo automaticamente
-  //
+  // ── PRODUÇÃO — fetch via cascata de proxies CORS ─────────────────
+  // @ake BUILD_3.1.1
   // tentativas_falhas: [
-  //   'v1: fetch direto → CORS blocked pelo browser',
-  //   'v2: JSONP script tag → redirect Google auth em requisicoes anonimas'
+  //   'v1: fetch direto → CORS blocked',
+  //   'v2: JSONP → redirect Google auth anonimo',
+  //   'v3: allorigins.win → HTTP 408 (timeout 5s < tempo DataJud)'
   // ]
+  // Solucao: cascata corsproxy.io (30s) → thingproxy (fallback)
+  // corsproxy.io tem timeout de 30s — suficiente para a maioria das consultas.
+  // Para consultas longas (DataJud > 30s), reduzir o periodo e tentar novamente.
+
   var p  = Object.assign({}, params, { apiKey: CFG.key, sheetId: CFG.sid });
   var qs = Object.keys(p).map(function(k) {
     return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
   }).join('&');
+  var gasUrl = CFG.url + '?' + qs;
 
-  var gasUrl   = CFG.url + '?' + qs;
-  var proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(gasUrl);
+  // Cascata de proxies — tenta cada um em sequencia
+  var proxies = [
+    'https://corsproxy.io/?' + encodeURIComponent(gasUrl),
+    'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(gasUrl),
+    'https://thingproxy.freeboard.io/fetch/' + gasUrl
+  ];
 
-  var ctrl = new AbortController();
-  var tid  = setTimeout(function() { ctrl.abort(); }, ms);
-
-  try {
-    var r = await fetch(proxyUrl, { signal: ctrl.signal });
-    if (!r.ok) throw new Error('Proxy retornou HTTP ' + r.status);
-    var d = await r.json();
-    lastResp = d;
-    var devEl = document.getElementById('dev-resp');
-    if (devEl) devEl.textContent = JSON.stringify(d, null, 2);
-    return d;
-  } catch(e) {
-    if (e.name === 'AbortError') {
-      throw new Error('Timeout: GAS ou proxy sem resposta em ' + Math.round(ms/1000) + 's.');
+  var lastErr = null;
+  for (var i = 0; i < proxies.length; i++) {
+    var ctrl = new AbortController();
+    var tid  = setTimeout(function() { ctrl.abort(); }, ms);
+    try {
+      dlog('INFO', 'Proxy ' + (i+1) + '/' + proxies.length + ': tentando...');
+      var r = await fetch(proxies[i], { signal: ctrl.signal });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var d = await r.json();
+      clearTimeout(tid);
+      lastResp = d;
+      var devEl = document.getElementById('dev-resp');
+      if (devEl) devEl.textContent = JSON.stringify(d, null, 2);
+      dlog('OK', 'Proxy ' + (i+1) + ' respondeu');
+      return d;
+    } catch(e) {
+      clearTimeout(tid);
+      lastErr = e.name === 'AbortError'
+        ? new Error('Timeout no proxy ' + (i+1) + '. Tente reduzir o periodo da consulta.')
+        : e;
+      dlog('WARN', 'Proxy ' + (i+1) + ' falhou: ' + (lastErr.message || e.message));
     }
-    throw new Error('Falha no proxy CORS: ' + e.message);
-  } finally {
-    clearTimeout(tid);
   }
+
+  // Todos os proxies falharam
+  throw new Error(
+    'Todos os proxies falharam. ' +
+    (lastErr ? lastErr.message + ' ' : '') +
+    'Tente: (1) reduzir o periodo (ex: 2022-2024), (2) usar Demo Mode.'
+  );
 
 } // fim async function callGAS
 
