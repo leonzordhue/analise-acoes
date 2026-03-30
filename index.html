@@ -340,9 +340,79 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
         </div>
       </div>
     </div>
+    <div class="modal-foot" style="justify-content:space-between">
+      <div style="display:flex;gap:.4rem">
+        <button class="btn btn-ghost btn-sm" onclick="testarGASNoBrowser()" title="Abre GAS no browser — deve mostrar JSON com ok:true">
+          🔍 Testar no browser
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="openModal('setup-modal');closeModal('cfg-modal')">
+          📋 Ver guia
+        </button>
+      </div>
+      <div style="display:flex;gap:.4rem">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('cfg-modal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvarCfg()">Salvar & Conectar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP GUIDE MODAL -->
+<div class="modal-overlay" id="setup-modal">
+  <div class="modal" style="max-width:660px">
+    <div class="modal-head" style="background:linear-gradient(to right,#162030,#1e2d40)">
+      <div class="modal-head-title">⚙ Configurar Google Apps Script — Passo a Passo</div>
+      <button class="modal-close" onclick="closeModal('setup-modal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--gray-brd)">
+        <div style="font-size:.78rem;color:var(--text-mid);line-height:1.7">
+          O GAS (backend) precisa ser implantado com acesso público. Siga os passos:
+        </div>
+      </div>
+      <div style="padding:1.25rem 1.5rem">
+        <div style="display:flex;flex-direction:column;gap:1rem">
+          <div style="display:flex;gap:.9rem;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--teal);color:#fff;font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
+            <div>
+              <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem">Abrir o projeto no script.google.com</div>
+              <div style="font-size:.75rem;color:var(--gray-mid)">Acesse <strong>script.google.com</strong> → abra o projeto → cole o Code.gs atualizado no editor</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:.9rem;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--teal);color:#fff;font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
+            <div>
+              <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem">Implantar → Gerenciar implantações</div>
+              <div style="font-size:.75rem;color:var(--gray-mid)">Clique no <strong>lápis</strong> (editar) → selecione <strong>Nova versão</strong> → clique <strong>Implantar</strong></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:.9rem;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--error,#B02020);color:#fff;font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">!</div>
+            <div style="background:var(--error-bg,#FEF2F2);border:1.5px solid rgba(176,32,32,.25);border-radius:8px;padding:.75rem 1rem">
+              <div style="font-weight:700;font-size:.82rem;color:#7a1010;margin-bottom:.2rem">Ponto crítico — Quem pode acessar</div>
+              <div style="font-size:.75rem;color:#7a1010;line-height:1.6">
+                Em <strong>"Quem pode acessar"</strong> selecione:<br>
+                <strong>→ Qualquer pessoa (incluindo usuários anônimos)</strong><br>
+                <em>Se estiver "Apenas eu" ou "Usuários do domínio", o browser recebe erro de permissão.</em>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:.9rem;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--teal);color:#fff;font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</div>
+            <div>
+              <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem">Copiar a URL e colar em Configurar</div>
+              <div style="font-size:.75rem;color:var(--gray-mid)">A URL gerada termina em <code style="background:var(--gray-light);padding:.1em .4em;border-radius:3px">/exec</code>. Cole em <strong>⚙ Configurar → URL do Apps Script</strong></div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:1.25rem;padding:.9rem 1rem;background:var(--teal-bg);border:1.5px solid var(--teal-brd);border-radius:8px;font-size:.75rem;color:var(--teal);line-height:1.6">
+          <strong>Enquanto isso:</strong> use o 🎭 Demo Mode — dados realistas do TJRJ sem precisar do GAS. A plataforma funciona 100% em Demo.
+        </div>
+      </div>
+    </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('cfg-modal')">Cancelar</button>
-      <button class="btn btn-primary" onclick="salvarCfg()">Salvar & Testar</button>
+      <button class="btn btn-gold" onclick="toggleDemo();closeModal('setup-modal')">🎭 Usar Demo agora</button>
+      <button class="btn btn-primary" onclick="closeModal('setup-modal')">Entendi</button>
     </div>
   </div>
 </div>
@@ -371,6 +441,7 @@ body{font-family:var(--font);background:var(--gray-bg);color:var(--text);-webkit
     <div class="hdr-right">
       <div class="hdr-status"><div class="hdr-dot" id="hdr-dot"></div><span id="hdr-txt">sem config.</span></div>
       <span class="header-badge">TJRJ · DataJud</span>
+      <button class="btn btn-ghost btn-sm" onclick="openModal('setup-modal')" title="Guia de configuração do GAS">📋 Setup</button>
       <button class="btn btn-gold btn-sm" id="btn-demo" onclick="toggleDemo()" title="Ativar modo demonstração com dados realistas (sem GAS)">🎭 Demo</button>
       <button class="btn btn-gold btn-sm" onclick="abrirCfg()">⚙ Configurar</button>
     </div>
@@ -1444,17 +1515,40 @@ function abrirCfg() {
   document.getElementById('cfg-sid').value = CFG.sid;
   openModal('cfg-modal');
 }
+
+/**
+ * Abre o GAS diretamente no browser para teste manual.
+ * URL sem callback = retorna JSON puro, visível no browser.
+ */
+function testarGASNoBrowser() {
+  var url = CFG.url + '?action=ping';
+  window.open(url, '_blank');
+  dlog('INFO','Abrindo GAS no browser: ' + url);
+}
+/**
+ * Ping silencioso — verifica conexão sem mostrar erro ao usuário.
+ * Se falhar, apenas atualiza o dot do header. O erro só é mostrado
+ * quando o usuário tenta uma consulta real.
+ *
+ * @ake BUILD_3.0.3 — ping silencioso: não mostrar erro no load inicial
+ */
 async function ping() {
   try {
-    const r = await callGAS({action:'ping'});
+    const r = await callGAS({action:'ping'}, 10000); // timeout curto para ping
     if (r.ok) {
       updStatus('ok', r.transport === 'jsonp' ? 'conectado (JSONP)' : 'conectado');
+      dlog('OK','GAS conectado' + (r.transport ? ' via ' + r.transport : ''));
     } else {
       updStatus('err','erro GAS');
+      dlog('WARN','GAS respondeu mas sem ok=true');
     }
   } catch(e) {
-    updStatus('err','inacessível');
-    dlog('ERROR', 'ping falhou: ' + e.message);
+    // Ping falhou silenciosamente — não mostra toast (o usuário não pediu nada ainda)
+    updStatus('err','GAS offline');
+    dlog('WARN','GAS offline — use Demo ou verifique configuracao');
+    // Mostrar dica sutil no header sem bloquear a UI
+    var hdrTxt = document.getElementById('hdr-txt');
+    if (hdrTxt) hdrTxt.title = 'GAS inacessivel. Clique em Setup para configurar.';
   }
 }
 function updStatus(st,tx) {
@@ -1917,55 +2011,64 @@ function rTableProcessos1(procs) {
  * @param {string} titulo  Título do erro
  * @param {string} detalhe Mensagem detalhada
  */
+/**
+ * Exibe toast de erro contextual + auto-ativa Demo Mode.
+ *
+ * @ake BUILD_3.0.3 — Auto-Demo na falha GAS: plataforma fica funcional
+ *   imediatamente sem depender da resolução do GAS.
+ * @param {string} titulo
+ * @param {string} detalhe
+ */
 function mostrarErroGAS(titulo, detalhe) {
-  // Remove toast anterior se existir
-  const old = document.getElementById('toast-erro-gas');
+  // Auto-ativar Demo Mode para a plataforma continuar funcionando
+  if (!DEMO_MODE) {
+    DEMO_MODE = true;
+    var btn = document.getElementById('btn-demo');
+    if (btn) {
+      btn.style.background = '#ff6b35';
+      btn.style.color = '#fff';
+      btn.textContent = '🎭 Demo ON';
+    }
+    updStatus('ok','demo ativo (GAS offline)');
+    dlog('WARN','GAS offline — Demo ativado automaticamente');
+  }
+
+  // Remove toast anterior
+  var old = document.getElementById('toast-erro-gas');
   if (old) old.remove();
 
-  const gasUrl = CFG.url + '?action=ping&callback=_pingTest';
-  const el = document.createElement('div');
+  var el = document.createElement('div');
   el.id = 'toast-erro-gas';
   el.style.cssText = [
     'position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999',
     'background:#fff;border:2px solid var(--error,#B02020);border-radius:12px',
     'box-shadow:0 8px 32px rgba(0,0,0,.18);padding:1.25rem 1.4rem',
-    'max-width:420px;font-family:var(--font,"DM Sans",sans-serif)',
+    'max-width:440px;font-family:var(--font,"DM Sans",sans-serif)',
     'animation:mIn .22s ease'
   ].join(';');
 
-  el.innerHTML = `
-    <div style="display:flex;align-items:flex-start;gap:.75rem">
-      <div style="font-size:1.3rem;flex-shrink:0">⚠</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:800;font-size:.9rem;color:#7a1010;margin-bottom:.3rem">${titulo}</div>
-        <div style="font-size:.78rem;color:var(--text-mid,#3D4F63);line-height:1.55;white-space:pre-line">${detalhe}</div>
-        <div style="margin-top:.85rem;display:flex;gap:.5rem;flex-wrap:wrap">
-          <button onclick="window.open('${gasUrl}','_blank')"
-            style="font-size:.72rem;font-weight:700;padding:.4em 1em;border-radius:7px;border:1.5px solid var(--teal,#0B4A44);color:var(--teal,#0B4A44);background:transparent;cursor:pointer">
-            🔍 Testar GAS
-          </button>
-          <button onclick="toggleDemo()"
-            style="font-size:.72rem;font-weight:700;padding:.4em 1em;border-radius:7px;border:1.5px solid #C9A93E;color:#9E8130;background:transparent;cursor:pointer">
-            🎭 Usar Demo
-          </button>
-          <button onclick="document.getElementById('toast-erro-gas').remove()"
-            style="font-size:.72rem;font-weight:700;padding:.4em 1em;border-radius:7px;border:1.5px solid var(--gray-brd,#DDE3EC);color:var(--gray-mid,#8899AA);background:transparent;cursor:pointer">
-            ✕ Fechar
-          </button>
-        </div>
-        <div style="margin-top:.6rem;font-size:.65rem;color:var(--gray-mid,#8899AA)">
-          Ative 🎭 Demo para usar a plataforma com dados realistas sem GAS
-        </div>
-      </div>
-    </div>`;
+  var id = el.id;
+  el.innerHTML = '<div style="display:flex;align-items:flex-start;gap:.75rem">'
+    + '<div style="font-size:1.3rem;flex-shrink:0">&#9888;</div>'
+    + '<div style="flex:1;min-width:0">'
+    + '<div style="font-weight:800;font-size:.9rem;color:#7a1010;margin-bottom:.25rem">' + titulo + '</div>'
+    + '<div style="font-size:.78rem;color:var(--text-mid,#3D4F63);line-height:1.55">' + detalhe + '</div>'
+    + '<div style="margin-top:.6rem;padding:.6rem .75rem;background:#FFF8E1;border:1px solid #F9A825;border-radius:6px;font-size:.72rem;color:#6B4F00">'
+    + '<strong>Demo Mode ativado automaticamente</strong> &mdash; dados realistas do TJRJ disponíveis agora.'
+    + '</div>'
+    + '<div style="margin-top:.75rem;display:flex;gap:.45rem;flex-wrap:wrap">'
+    + '<button onclick="openModal(' + String.fromCharCode(39) + 'setup-modal' + String.fromCharCode(39) + ')" style="font-size:.72rem;font-weight:700;padding:.4em .9em;border-radius:7px;border:1.5px solid var(--teal,#0B4A44);color:var(--teal,#0B4A44);background:transparent;cursor:pointer">📋 Ver guia setup</button>'
+    + '<button onclick="abrirCfg()" style="font-size:.72rem;font-weight:700;padding:.4em .9em;border-radius:7px;border:1.5px solid #8899AA;color:#8899AA;background:transparent;cursor:pointer">&#9881; Configurar URL</button>'
+    + '<button onclick="document.getElementById(' + String.fromCharCode(39) + id + String.fromCharCode(39) + ').remove()" style="font-size:.72rem;font-weight:700;padding:.4em .9em;border-radius:7px;border:1.5px solid #DDE3EC;color:#8899AA;background:transparent;cursor:pointer">&#10005; Fechar</button>'
+    + '</div>'
+    + '</div>'
+    + '</div>';
 
   document.body.appendChild(el);
   dlog('ERROR', titulo + ': ' + detalhe.substring(0, 80));
 
-  // Auto-remove após 30s
-  setTimeout(function() {
-    if (el.parentNode) el.remove();
-  }, 30000);
+  // Auto-remove após 20s
+  setTimeout(function() { if (el.parentNode) el.remove(); }, 20000);
 }
 
 // ── BUSCA PROCESSO ────────────────────────────────────────────────
@@ -3266,52 +3369,52 @@ async function callGAS(params, ms) {
     return { error: 'Ação não suportada no modo demo.' };
   }
 
-  // ── PRODUÇÃO — JSONP (bypassa CORS do GitHub Pages → GAS) ────────
-  // @ake BUILD_3.0.2 — JSONP robusto, settled flag, strings sem quebra literal
-  // tentativas_falhas: ['fetch() CORS blocked', 'strings multilinhas em single-quotes']
-  return new Promise(function(resolve, reject) {
-    var cbName  = '_gasCb_' + Date.now() + '_' + Math.floor(Math.random() * 9999);
-    var script  = document.createElement('script');
-    var tid     = null;
-    var settled = false;
+  // ── PRODUÇÃO — fetch via proxy CORS (allorigins.win) ────────────
+  // @ake BUILD_3.1.0 — FIX definitivo do CORS
+  //
+  // Problema confirmado: GitHub Pages → script.google.com → redirect Google auth
+  // antes do doGet ser executado, mesmo com acesso=publico.
+  // O diag retornou ok:true quando aberto no browser (usuario autenticado).
+  // Com script tag anonima, o Google redireciona antes.
+  //
+  // Solucao: allorigins.win faz o fetch server-side e devolve com CORS aberto.
+  // Sem script tag, sem JSONP, sem onerror. Fetch simples e auditavel.
+  //
+  // @source https://allorigins.win — proxy CORS publico e gratuito
+  // @sovereignty PARCIALMENTE SOBERANO — depende de allorigins.win
+  // @fallback Se allorigins falhar, ativa Demo automaticamente
+  //
+  // tentativas_falhas: [
+  //   'v1: fetch direto → CORS blocked pelo browser',
+  //   'v2: JSONP script tag → redirect Google auth em requisicoes anonimas'
+  // ]
+  var p  = Object.assign({}, params, { apiKey: CFG.key, sheetId: CFG.sid });
+  var qs = Object.keys(p).map(function(k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
+  }).join('&');
 
-    function cleanup() {
-      if (tid) clearTimeout(tid);
-      if (window[cbName])    delete window[cbName];
-      if (script.parentNode) script.parentNode.removeChild(script);
+  var gasUrl   = CFG.url + '?' + qs;
+  var proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(gasUrl);
+
+  var ctrl = new AbortController();
+  var tid  = setTimeout(function() { ctrl.abort(); }, ms);
+
+  try {
+    var r = await fetch(proxyUrl, { signal: ctrl.signal });
+    if (!r.ok) throw new Error('Proxy retornou HTTP ' + r.status);
+    var d = await r.json();
+    lastResp = d;
+    var devEl = document.getElementById('dev-resp');
+    if (devEl) devEl.textContent = JSON.stringify(d, null, 2);
+    return d;
+  } catch(e) {
+    if (e.name === 'AbortError') {
+      throw new Error('Timeout: GAS ou proxy sem resposta em ' + Math.round(ms/1000) + 's.');
     }
-
-    function settle(fn, val) {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      fn(val);
-    }
-
-    tid = setTimeout(function() {
-      settle(reject, new Error('GAS sem resposta. Code.gs precisa ser re-implantado com suporte JSONP. Use o botao Demo enquanto resolve.'));
-    }, ms);
-
-    window[cbName] = function(data) {
-      lastResp = data;
-      var devEl = document.getElementById('dev-resp');
-      if (devEl) devEl.textContent = JSON.stringify(data, null, 2);
-      settle(resolve, data);
-    };
-
-    var p  = Object.assign({}, params, { apiKey: CFG.key, sheetId: CFG.sid, callback: cbName });
-    var qs = Object.keys(p).map(function(k) {
-      return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
-    }).join('&');
-
-    script.onerror = function() {
-      settle(reject, new Error('GAS inacessivel. Verifique: (1) URL em Configurar, (2) Acesso = Qualquer pessoa, (3) Code.gs re-implantado. Use Demo enquanto resolve.'));
-    };
-
-    script.src   = CFG.url + '?' + qs;
-    script.async = true;
-    document.head.appendChild(script);
-  }); // fim new Promise
+    throw new Error('Falha no proxy CORS: ' + e.message);
+  } finally {
+    clearTimeout(tid);
+  }
 
 } // fim async function callGAS
 
@@ -3337,9 +3440,20 @@ window.addEventListener('unhandledrejection', function(e) {
 (function init(){
   initYears();
   loadCfg();
-  dlog('INIT',`LAADV JusData Analytics v3.0.0 — ${new Date().toLocaleString('pt-BR')}`);
-  dlog('INFO','Tab 1: Relatório por empresa · Tab 2: Busca DataJud');
-  dlog('INFO','🎭 DEMO MODE disponível — clique no botão Demo no header para ativar');
+  dlog('INIT','LAADV JusData Analytics v3.0.3 — ' + new Date().toLocaleString('pt-BR'));
+  dlog('INFO','Tab 1: Empresa | Tab 2: DataJud | Tab 3: CNPJ');
+  dlog('INFO','DEMO MODE disponivel — botao Demo no header');
+
+  // Verificar status do GAS 1.5s após load (sem bloquear a UI)
+  setTimeout(function() {
+    if (!DEMO_MODE) {
+      ping().then(function() {
+        // Ping OK — nada a fazer
+      }).catch(function() {
+        // Ping falhou — mostrar dica no dot sem toasts
+      });
+    }
+  }, 1500);
 })();
 </script>
 </body>
